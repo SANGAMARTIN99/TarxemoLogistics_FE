@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import CustomerDashboard from '../../pages/Customer/CustomerDashboard';
 import DriverDashboard from '../../pages/Driver/DriverDashboard';
 import TenantDashboard from '../../pages/TenantAdmin/TenantDashboard';
+import SuperAdminDashboard from '../../pages/SuperAdmin/SuperAdminDashboard';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROLE-BASED DASHBOARD VIEWS ( horizontal grids, full-width layouts )
@@ -511,10 +512,30 @@ const CombinedNavBar: React.FC = () => {
                 <CustomerDashboard />
               ) : userRole === 'TENANT_ADMIN' ? (
                 <TenantDashboard />
+              ) : userRole === 'SUPER_ADMIN' ? (
+                <SuperAdminDashboard />
               ) : (
                 <DefaultDashboardView role={userRole} />
               )
             } />
+            {userRole === 'SUPER_ADMIN' && (
+              <>
+                <Route path="tenants" element={<SuperAdminDashboard />} />
+                <Route path="system-logs" element={<SuperAdminDashboard />} />
+              </>
+            )}
+            {userRole === 'TENANT_ADMIN' && (
+              <>
+                <Route path="fleet" element={<TenantDashboard />} />
+                <Route path="jobs" element={<TenantDashboard />} />
+              </>
+            )}
+            {userRole === 'CUSTOMER' && (
+              <Route path="cargoes" element={<CustomerDashboard />} />
+            )}
+            {userRole === 'DRIVER' && (
+              <Route path="trips" element={<DriverDashboard />} />
+            )}
             <Route path="settings" element={
               <div className="glass border border-white/5 p-6 md:p-8 rounded-2xl space-y-6">
                 <div>

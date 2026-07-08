@@ -238,8 +238,8 @@ const AuthPage: React.FC = () => {
         }
       });
 
-      if (data?.login?.success) {
-        toast.success(data.login.message || 'Login successful!');
+      if (data?.login?.accessToken) {
+        toast.success('Login successful!');
         setTokens(data.login.accessToken, data.login.refreshToken);
         setUser(data.login.user);
         
@@ -287,21 +287,20 @@ const AuthPage: React.FC = () => {
           input: {
             email: registerForm.email,
             password: registerForm.password,
+            confirmPassword: registerForm.confirmPassword,
             firstName: registerForm.firstName,
             lastName: registerForm.lastName,
-            phone: cleanPhone
+            phoneNumber: cleanPhone
           }
         }
       });
 
       if (data?.register?.success) {
-        toast.success(data.register.message || 'Registration successful! Signing in...');
-        setTokens(data.register.accessToken, data.register.refreshToken);
-        setUser(data.register.user);
-
+        toast.success(data.register.message || 'Registration successful! Please check your email to verify your account.');
         setTimeout(() => {
-          navigate('/dashboard');
-        }, 800);
+          setMode('login');
+          navigate('/auth?mode=login');
+        }, 2000);
       } else {
         toast.error(data?.register?.message || 'Registration failed');
       }

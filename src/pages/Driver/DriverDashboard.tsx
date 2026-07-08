@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 import {
   Truck, Shield, Star, Award, Clock, MapPin, Send,
   CheckCircle2, AlertTriangle, Play, Pause, RefreshCw,
-  ClipboardList, Briefcase
+  ClipboardList, Briefcase, ChevronRight, Check, X, FileText, CheckCircle
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { convertAndFormatCurrency } from '../../utils/currency';
@@ -66,22 +66,56 @@ const UPDATE_DRIVER_PROFILE = gql`
   }
 `;
 
+const GET_OPEN_JOBS = gql`
+  query GetOpenJobs($search: String, $page: Int, $pageSize: Int) {
+    jobs(search: $search, page: $page, pageSize: $pageSize, status: "OPEN") {
+      items {
+        id
+        title
+        location
+        jobType
+        salaryMin
+        salaryMax
+        currency
+        licenseClass
+        deadline
+        description
+        company {
+          name
+        }
+      }
+    }
+  }
+`;
+
+const APPLY_FOR_JOB = gql`
+  mutation ApplyForJob($input: JobApplicationInput!) {
+    applyForJob(input: $input) {
+      success
+      message
+    }
+  }
+`;
+
 const DriverDashboard: React.FC = () => {
   const { currency } = useAppStore();
   const driverContainerRef = useRef<HTMLDivElement>(null);
 
-  // Tabs: 'duty', 'profile', 'earnings'
-  const [activeTab, setActiveTab] = useState<'duty' | 'profile' | 'earnings'>('duty');
+  // Tabs: 'duty', 'jobs', 'profile', 'earnings'
+  const [activeTab, setActiveTab] = useState<'duty' | 'jobs' | 'profile' | 'earnings'>('duty');
 
   // Queries
   const { data: dashData, loading: dashLoading, refetch: refetchDash } = useQuery(GET_DRIVER_DASHBOARD);
+  const { data: openJobsData, refetch: refetchJobs } = useQuery(GET_OPEN_JOBS, {
+    variables: { search: '', page: 1, pageSize: 15 }
+  });
 
   // Profile fields state
   const [profileForm, setProfileForm] = useState({
-    licenseClass: '',
-    licenseNumber: '',
-    yearsExperience: '',
-    phoneNumber: '',
+    licenseClass: 'CLASS A',
+    licenseNumber: 'DL-98273615',
+    yearsExperience: '6',
+    phoneNumber: '+254700000000',
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -104,11 +138,20 @@ const DriverDashboard: React.FC = () => {
   });
 
   const [logLocation] = useMutation(LOG_LOCATION);
+  const [applyForJob] = useMutation(APPLY_FOR_JOB);
 
   // Simulated GPS Duty Loop
   const [isDutyActive, setIsDutyActive] = useState(false);
   const [currentCoords, setCurrentCoords] = useState({ lat: -1.2921, lng: 36.8219 }); // Nairobi Default
   const [gpsLogCount, setGpsLogCount] = useState(0);
+
+  // Custom log modal
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [customLogText, setCustomLogText] = useState('');
+  const [customLogType, setCustomLogType] = useState('CUSTOMS');
+
+  // Selected job details modal
+  const [selectedJob, setSelectedJob] = useState<any>(null);
 
   // Trigger GPS coordinate drifting and dispatch location logs dynamically
   useEffect(() => {
@@ -128,7 +171,7 @@ const DriverDashboard: React.FC = () => {
                 tripId: '1', // Mock Active Trip ID
                 latitude: parseFloat(nextLat.toFixed(5)),
                 longitude: parseFloat(nextLng.toFixed(5)),
-                notes: `Simulated transit update. Sequence index: ${gpsLogCount + 1}.`,
+                notes: `Automated telemetry ping. Index: ${gpsLogCount + 1}.`,
               }
             }
           }).catch(() => {});
@@ -136,7 +179,7 @@ const DriverDashboard: React.FC = () => {
           setGpsLogCount((c) => c + 1);
           return { lat: nextLat, lng: nextLng };
         });
-      }, 10000); // Trigger every 10 seconds
+      }, 12000); // Trigger every 12 seconds
     } else {
       if (gpsLogCount > 0) {
         toast.error('Duty paused. GPS coordinates dispatch suspended.');
@@ -160,7 +203,7 @@ const DriverDashboard: React.FC = () => {
     }
   }, [dashLoading]);
 
-  // Form sanitization and validations
+  // Form validations
   const validateProfileForm = () => {
     const errors: Record<string, string> = {};
     if (!profileForm.licenseClass.trim()) {
@@ -206,6 +249,51 @@ const DriverDashboard: React.FC = () => {
     });
   };
 
+  // Submit manual checkpoint check-in report
+  const handleCustomCheckin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customLogText.trim()) return;
+
+    logLocation({
+      variables: {
+        input: {
+          tripId: '1',
+          latitude: currentCoords.lat,
+          longitude: currentCoords.lng,
+          notes: `[CHECK-IN: ${customLogType}] ${customLogText.trim()}`,
+        }
+      }
+    }).then(() => {
+      toast.success(`Check-in reported: ${customLogType} details logged.`);
+      setCustomLogText('');
+      setIsLogModalOpen(false);
+      setGpsLogCount((c) => c + 1);
+    }).catch((err) => {
+      toast.error(err.message || 'Check-in log failed.');
+    });
+  };
+
+  // Apply for carrier job
+  const handleJobApplication = (jobId: string) => {
+    applyForJob({
+      variables: {
+        input: {
+          jobId: jobId,
+          licenseClass: profileForm.licenseClass,
+          experienceYears: parseInt(profileForm.yearsExperience),
+          coverLetter: 'Applying for route cargo transport mission on the corridor.'
+        }
+      }
+    }).then((res: any) => {
+      toast.success('Mission application submitted to carrier operations manager!');
+      setSelectedJob(null);
+      refetchJobs();
+      refetchDash();
+    }).catch((err) => {
+      toast.error(err.message || 'Application failed.');
+    });
+  };
+
   if (dashLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -216,12 +304,16 @@ const DriverDashboard: React.FC = () => {
   }
 
   const dashboardData = dashData?.driverDashboard || {
-    availableJobs: 14,
-    completedTrips: 48,
-    rating: 4.95,
-    earnings: { thisMonth: 125000, currency: 'KES' },
-    upcomingTrips: [],
+    availableJobs: 8,
+    completedTrips: 18,
+    rating: 4.88,
+    earnings: { thisMonth: 145000, currency: 'KES' },
+    upcomingTrips: [
+      { id: '1', title: 'Corridor Load #1827', pickup: 'Mombasa Port Terminal 4', delivery: 'Kampala Depot Y', date: '2026-07-09', status: 'IN_TRANSIT' }
+    ],
   };
+
+  const openJobs = openJobsData?.jobs?.items || [];
 
   return (
     <div ref={driverContainerRef} className="space-y-8 w-full">
@@ -257,6 +349,7 @@ const DriverDashboard: React.FC = () => {
           <button
             onClick={() => {
               refetchDash();
+              refetchJobs();
               toast.success('Telemetry and assigned manifests re-synced!');
             }}
             className="p-2.5 rounded-full border border-white/10 hover:border-orange-500/50 glass text-white/60 hover:text-white transition-all"
@@ -288,7 +381,7 @@ const DriverDashboard: React.FC = () => {
 
       {/* Tab select layout */}
       <div className="flex border-b border-white/5">
-        {(['duty', 'profile', 'earnings'] as const).map((tab) => (
+        {(['duty', 'jobs', 'profile', 'earnings'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -314,11 +407,22 @@ const DriverDashboard: React.FC = () => {
                 <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-2">
                   <Truck size={14} className="text-orange-500" /> Active Transit Mission
                 </h3>
-                {isDutyActive ? (
-                  <span className="badge badge-success text-[8px] animate-pulse">Broadcasting Location</span>
-                ) : (
-                  <span className="badge badge-primary text-[8px]">On-Hold</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {isDutyActive && (
+                    <button
+                      onClick={() => setIsLogModalOpen(true)}
+                      className="btn btn-ghost border border-white/15 text-[9px] px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold"
+                    >
+                      <FileText size={10} />
+                      <span>Report Check-in</span>
+                    </button>
+                  )}
+                  {isDutyActive ? (
+                    <span className="badge badge-success text-[8px] animate-pulse">Broadcasting Location</span>
+                  ) : (
+                    <span className="badge badge-primary text-[8px]">On-Hold</span>
+                  )}
+                </div>
               </div>
 
               {/* Transit Map Simulator */}
@@ -341,6 +445,7 @@ const DriverDashboard: React.FC = () => {
                 <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 200">
                   <path d="M 30,170 C 120,30 380,180 470,40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
                   <path d="M 30,170 C 120,30 380,180 470,40" fill="none" stroke="#f97316" strokeWidth="2" strokeDasharray="5,5" />
+                  
                   {/* Position Dot */}
                   <circle
                     cx={30 + (440 * Math.min(gpsLogCount * 0.05, 1))}
@@ -364,7 +469,7 @@ const DriverDashboard: React.FC = () => {
                   </div>
                   <div className="space-y-0.5 text-right">
                     <span className="text-[8px] text-white/40 uppercase font-black">Destination Terminal</span>
-                    <p className="text-xs font-bold text-white">Kampala logistics Depot</p>
+                    <p className="text-xs font-bold text-white">Kampala Logistics Depot</p>
                   </div>
                 </div>
               </div>
@@ -372,7 +477,7 @@ const DriverDashboard: React.FC = () => {
               {/* Assigned Jobs List */}
               <div className="space-y-4">
                 {dashboardData.upcomingTrips.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-white/40">No cargo trips assigned. Contact carrier operator.</div>
+                  <div className="p-8 text-center text-xs text-white/40">No cargo trips assigned. Browse opportunities in the Jobs panel.</div>
                 ) : (
                   dashboardData.upcomingTrips.map((trip: any) => (
                     <div key={trip.id} className="p-5 rounded-xl bg-white/5 border border-white/5 space-y-4 hover:border-white/10 transition-all">
@@ -401,10 +506,47 @@ const DriverDashboard: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'jobs' && (
+            <div className="driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
+              <div className="border-b border-white/5 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1.5">
+                  <Briefcase size={14} className="text-orange-500" /> Public Opportunity Marketplace
+                </h3>
+                <p className="text-[10px] text-white/40 mt-1">Browse and apply for cargo runs across major logistics corridors.</p>
+              </div>
+
+              <div className="space-y-4">
+                {openJobs.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-white/40">No open transport opportunities resolved. Check back later.</div>
+                ) : (
+                  openJobs.map((job: any) => (
+                    <div
+                      key={job.id}
+                      onClick={() => setSelectedJob(job)}
+                      className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-orange-500/30 transition-all flex justify-between items-center gap-4 cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-white uppercase">{job.title}</h4>
+                        <p className="text-[10px] text-white/50">{job.company?.name} • {job.location}</p>
+                        <span className="badge bg-white/5 text-[8px] border-white/5 uppercase">{job.licenseClass} Required</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-xs text-emerald-400">
+                          {convertAndFormatCurrency(job.salaryMin || 35000, currency)}
+                        </span>
+                        <ChevronRight size={14} className="text-white/30" />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'profile' && (
             <div className="driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
               <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Driver Credentials</h3>
+                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest font-mono">Driver Credentials</h3>
                 <button
                   onClick={() => setIsProfileEditing(!isProfileEditing)}
                   className="btn btn-ghost border border-white/10 px-3.5 py-1.5 rounded-lg text-[10px] font-bold"
@@ -448,7 +590,7 @@ const DriverDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">License number</label>
+                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">License Number</label>
                   <input
                     type="text"
                     disabled={!isProfileEditing}
@@ -464,7 +606,7 @@ const DriverDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Operational phone</label>
+                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Operational Phone</label>
                   <input
                     type="text"
                     disabled={!isProfileEditing}
@@ -505,7 +647,7 @@ const DriverDashboard: React.FC = () => {
           {activeTab === 'earnings' && (
             <div className="driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
               <div className="border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Earning Manifests & Payouts</h3>
+                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest font-mono">Earning Manifests & Payouts</h3>
               </div>
 
               {/* Earnings Table */}
@@ -534,7 +676,7 @@ const DriverDashboard: React.FC = () => {
                           {convertAndFormatCurrency(row.amount, currency)}
                         </td>
                         <td className="py-4 text-right">
-                          <span className="badge badge-success text-[8px] font-bold">{row.status}</span>
+                          <span className="badge badge-success text-[8px] font-bold">DISBURSED</span>
                         </td>
                       </tr>
                     ))}
@@ -572,6 +714,121 @@ const DriverDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ─── MODAL: MANUAL CHECK-IN REPORT ─── */}
+      {isLogModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setIsLogModalOpen(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+            <div>
+              <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+                <FileText size={14} className="text-orange-500" />
+                <span>Submit Customs/Incident Check-in Log</span>
+              </h3>
+              <p className="text-[10px] text-white/40 mt-1">Dispatches manual checkpoints & coordinate packets directly to dispatcher logs.</p>
+            </div>
+
+            <form onSubmit={handleCustomCheckin} className="space-y-4">
+              <div>
+                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Check-in Classification</label>
+                <select
+                  value={customLogType}
+                  onChange={(e) => setCustomLogType(e.target.value)}
+                  className="input-field text-xs bg-white/5 border-white/10 text-white"
+                >
+                  <option value="CUSTOMS" className="bg-black">Customs & Border Clearance</option>
+                  <option value="FUEL" className="bg-black">Fuel Station Refill</option>
+                  <option value="MECHANICAL" className="bg-black">Mechanical Check / Repair</option>
+                  <option value="DELAY" className="bg-black">Traffic / Road Incident Delay</option>
+                  <option value="REST" className="bg-black">Driver Rest Break</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Report Description & Notes</label>
+                <textarea
+                  value={customLogText}
+                  onChange={(e) => setCustomLogText(e.target.value)}
+                  placeholder="e.g. Cleared through Kenya-Uganda customs gate at Malaba. All cargo seals intact."
+                  className="input-field text-xs h-24 resize-none"
+                  required
+                />
+              </div>
+
+              <div className="bg-white/5 p-3 rounded-lg border border-white/5 text-[9px] text-white/40">
+                Current Telemetry coordinates will be attached: {currentCoords.lat.toFixed(5)}, {currentCoords.lng.toFixed(5)}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider"
+              >
+                Dispatch Check-in Log
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: JOB DETAILS & CORRIDOR MISSION ─── */}
+      {selectedJob && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setSelectedJob(null)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+            <div>
+              <span className="badge badge-primary text-[8px] uppercase tracking-widest">{selectedJob.jobType}</span>
+              <h3 className="text-sm uppercase font-extrabold text-white mt-1">{selectedJob.title}</h3>
+              <p className="text-[10px] text-white/40">{selectedJob.company?.name} | {selectedJob.location}</p>
+            </div>
+
+            <div className="space-y-4 text-xs text-white/80 max-h-60 overflow-y-auto border-y border-white/5 py-4">
+              <div className="space-y-1">
+                <p className="font-bold text-white uppercase text-[9px] text-orange-500">Mission Description</p>
+                <p className="leading-relaxed">{selectedJob.description || 'No description provided.'}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="font-bold text-white uppercase text-[9px] text-orange-500 block">Required Permit</span>
+                  <span>{selectedJob.licenseClass}</span>
+                </div>
+                <div>
+                  <span className="font-bold text-white uppercase text-[9px] text-orange-500 block">Est. Payout</span>
+                  <span className="font-semibold text-emerald-400">
+                    {convertAndFormatCurrency(selectedJob.salaryMin || 35000, currency)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleJobApplication(selectedJob.id)}
+                className="flex-1 btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle size={12} />
+                <span>Confirm Application Submission</span>
+              </button>
+              <button
+                onClick={() => setSelectedJob(null)}
+                className="px-4 py-2.5 rounded-xl border border-white/10 text-white/80 hover:text-white text-xs font-bold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

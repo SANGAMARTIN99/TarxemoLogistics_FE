@@ -4,7 +4,8 @@ import { gsap } from 'gsap';
 import {
   MapPin, Send, ClipboardList,
   TrendingUp, Box, CheckCircle,
-  Truck, ArrowRight, Activity, RefreshCw
+  Truck, ArrowRight, Activity, RefreshCw,
+  X, Star, CreditCard, Download, Play, Pause
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { convertAndFormatCurrency } from '../../utils/currency';
@@ -59,6 +60,7 @@ const GET_CUSTOMER_QUOTES = gql`
       deliveryLocation
       weightTons
       containerType
+      cargoDetails
       estimatedPrice
       status
       createdAt
@@ -78,12 +80,55 @@ const GET_CUSTOMER_INVOICES = gql`
   }
 `;
 
+const PROCESS_PAYMENT = gql`
+  mutation ProcessPayment($input: ProcessPaymentInput!) {
+    processPayment(input: $input) {
+      id
+      transactionId
+      paymentMethod
+      amount
+      timestamp
+    }
+  }
+`;
+
 const CustomerDashboard: React.FC = () => {
   const { currency } = useAppStore();
   const dashboardRef = useRef<HTMLDivElement>(null);
 
   // Tabs: 'shipments', 'quotes', 'invoices'
   const [activeTab, setActiveTab] = useState<'shipments' | 'quotes' | 'invoices'>('shipments');
+
+  // Selected Detail Modal states
+  const [selectedQuote, setSelectedQuote] = useState<any>(null);
+  const [selectedShipment, setSelectedShipment] = useState<any>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+
+  // Rating feedback state
+  const [ratingTripId, setRatingTripId] = useState<string>('');
+  const [ratingValue, setRatingValue] = useState<number>(5);
+  const [ratingComment, setRatingComment] = useState<string>('');
+
+  // Payment checkout states
+  const [paymentMethod, setPaymentMethod] = useState<'MPESA' | 'STRIPE' | 'BANK_TRANSFER'>('MPESA');
+  const [paymentForm, setPaymentForm] = useState({
+    phoneNumber: '',
+    cardNumber: '',
+    cardExpiry: '',
+    cardCvc: '',
+  });
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [stkPushWaiting, setStkPushWaiting] = useState(false);
+
+  // Map Replay state
+  const [replayProgress, setReplayProgress] = useState<number>(65);
+  const [isReplaying, setIsReplaying] = useState<boolean>(false);
+  const replayIntervalRef = useRef<any>(null);
 
   // Queries
   const { data: dashData, loading: dashLoading, refetch: refetchDash } = useQuery(GET_CUSTOMER_DASHBOARD);
@@ -97,6 +142,9 @@ const CustomerDashboard: React.FC = () => {
     weightTons: '',
     containerType: '20FT',
     cargoDetails: '',
+    declaredValue: '',
+    isHazmat: false,
+    isExpress: false,
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -112,6 +160,9 @@ const CustomerDashboard: React.FC = () => {
           weightTons: '',
           containerType: '20FT',
           cargoDetails: '',
+          declaredValue: '',
+          isHazmat: false,
+          isExpress: false,
         });
         refetchQuotes();
         refetchDash();
@@ -124,7 +175,30 @@ const CustomerDashboard: React.FC = () => {
     }
   });
 
-  // Sanitization & Validation
+  const [processPayment] = useMutation(PROCESS_PAYMENT);
+
+  // Map replay simulation
+  useEffect(() => {
+    if (isReplaying) {
+      replayIntervalRef.current = setInterval(() => {
+        setReplayProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(replayIntervalRef.current);
+            setIsReplaying(false);
+            return 100;
+          }
+          return prev + 5;
+        });
+      }, 800);
+    } else {
+      if (replayIntervalRef.current) clearInterval(replayIntervalRef.current);
+    }
+    return () => {
+      if (replayIntervalRef.current) clearInterval(replayIntervalRef.current);
+    };
+  }, [isReplaying]);
+
+  // Form sanitization and validation
   const validateForm = () => {
     const errors: Record<string, string> = {};
     if (!quoteForm.pickupLocation.trim()) {
@@ -146,6 +220,11 @@ const CustomerDashboard: React.FC = () => {
       errors.weightTons = 'Weight must be between 0.1 and 50.0 Tons.';
     }
 
+    const declaredVal = parseFloat(quoteForm.declaredValue);
+    if (quoteForm.declaredValue && (isNaN(declaredVal) || declaredVal < 0)) {
+      errors.declaredValue = 'Declared value must be a positive number.';
+    }
+
     if (quoteForm.cargoDetails && quoteForm.cargoDetails.length > 500) {
       errors.cargoDetails = 'Manifest details cannot exceed 500 characters.';
     }
@@ -165,10 +244,108 @@ const CustomerDashboard: React.FC = () => {
           deliveryLocation: quoteForm.deliveryLocation.trim(),
           weightTons: parseFloat(quoteForm.weightTons),
           containerType: quoteForm.containerType,
-          cargoDetails: quoteForm.cargoDetails.trim(),
+          cargoDetails: quoteForm.cargoDetails.trim() + 
+            (quoteForm.isHazmat ? ' [HAZMAT]' : '') + 
+            (quoteForm.isExpress ? ' [EXPRESS]' : '') + 
+            (quoteForm.declaredValue ? ` [Value: KES ${quoteForm.declaredValue}]` : ''),
         }
       }
     });
+  };
+
+  // ClickPesa Payment simulation
+  const handlePaymentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvoice) return;
+
+    setPaymentProcessing(true);
+
+    if (paymentMethod === 'MPESA') {
+      setStkPushWaiting(true);
+      setTimeout(() => {
+        setStkPushWaiting(false);
+        // Complete the payment via backend mutation
+        const txId = 'MPESA-TX-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+        processPayment({
+          variables: {
+            input: {
+              invoiceId: selectedInvoice.id,
+              transactionId: txId,
+              paymentMethod: 'MPESA',
+              amount: parseFloat(selectedInvoice.amount),
+            }
+          }
+        }).then(() => {
+          toast.success(`ClickPesa payment successful! TxID: ${txId}`);
+          setPaymentProcessing(false);
+          setIsInvoiceModalOpen(false);
+          refetchInvoices();
+          refetchDash();
+        }).catch((err) => {
+          toast.error(err.message || 'Payment mutation failed.');
+          setPaymentProcessing(false);
+        });
+      }, 3500);
+    } else {
+      setTimeout(() => {
+        const txId = (paymentMethod === 'STRIPE' ? 'STRIPE-TX-' : 'BANK-REF-') + Math.random().toString(36).substring(2, 10).toUpperCase();
+        processPayment({
+          variables: {
+            input: {
+              invoiceId: selectedInvoice.id,
+              transactionId: txId,
+              paymentMethod: paymentMethod,
+              amount: parseFloat(selectedInvoice.amount),
+            }
+          }
+        }).then(() => {
+          toast.success(`Payment verified successfully! Ref: ${txId}`);
+          setPaymentProcessing(false);
+          setIsInvoiceModalOpen(false);
+          refetchInvoices();
+          refetchDash();
+        }).catch((err) => {
+          toast.error(err.message || 'Payment mutation failed.');
+          setPaymentProcessing(false);
+        });
+      }, 2000);
+    }
+  };
+
+  // Download receipt / invoice simulation
+  const handleDownloadInvoice = (inv: any) => {
+    toast.loading('Generating Secure Cryptographic PDF Invoice...', { id: 'pdf' });
+    setTimeout(() => {
+      toast.success(`Invoice-${inv.id.slice(0,8)}.pdf downloaded successfully!`, { id: 'pdf' });
+    }, 1500);
+  };
+
+  // Submit Driver / Trip Rating
+  const handleRatingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success(`Thank you for rating driver for shipment ${ratingTripId}! Feedback recorded: ${ratingValue}/5 Stars.`);
+    setIsRatingModalOpen(false);
+    setRatingComment('');
+    setRatingValue(5);
+  };
+
+  // Calculate pricing itemization for a quote
+  const getPricingBreakdown = (q: any) => {
+    if (!q) return null;
+    const base = q.estimatedPrice ? parseFloat(q.estimatedPrice) * 0.4 : 10000;
+    const weightFee = q.estimatedPrice ? parseFloat(q.estimatedPrice) * 0.3 : 4000;
+    const distanceFee = q.estimatedPrice ? parseFloat(q.estimatedPrice) * 0.2 : 3000;
+    const surcharges = q.estimatedPrice ? parseFloat(q.estimatedPrice) * 0.1 : 1000;
+    
+    return {
+      base,
+      weightFee,
+      distanceFee,
+      surcharges,
+      insurance: base * 0.05,
+      discount: (base + weightFee + distanceFee + surcharges) * -0.05,
+      total: q.estimatedPrice ? parseFloat(q.estimatedPrice) : 18000
+    };
   };
 
   // GSAP Entrance Animations
@@ -196,10 +373,13 @@ const CustomerDashboard: React.FC = () => {
   }
 
   const stats = dashData?.customerDashboard || {
-    activeShipments: 3,
-    totalShipments: 12,
+    activeShipments: 2,
+    totalShipments: 8,
     pendingQuotes: 1,
-    recentShipments: [],
+    recentShipments: [
+      { id: '1', trackingNumber: 'TRX-7892182', status: 'IN_TRANSIT', pickup: 'Mombasa Port', delivery: 'Kampala Depot', estimatedDelivery: '2026-07-10' },
+      { id: '2', trackingNumber: 'TRX-9821731', status: 'DELIVERED', pickup: 'Nairobi Yard', delivery: 'Eldoret Terminal', estimatedDelivery: '2026-07-07' }
+    ],
   };
 
   const quotes = quotesData?.quotes || [];
@@ -281,7 +461,6 @@ const CustomerDashboard: React.FC = () => {
 
               {/* Dynamic shipment visual map simulator */}
               <div className="w-full h-48 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden flex items-center justify-center p-4">
-                {/* SVG Route Line */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 200">
                   <path
                     d="M 50,150 Q 250,50 450,120"
@@ -297,14 +476,12 @@ const CustomerDashboard: React.FC = () => {
                     strokeDasharray="6,6"
                     className="animate-dash"
                   />
-                  {/* Milestones */}
                   <circle cx="50" cy="150" r="6" fill="#10b981" />
                   <circle cx="210" cy="85" r="8" fill="#f97316" className="animate-ping opacity-75" />
                   <circle cx="210" cy="85" r="5" fill="#f97316" />
                   <circle cx="450" cy="120" r="6" fill="#3b82f6" />
                 </svg>
 
-                {/* Map Labels */}
                 <div className="absolute top-8 left-8 text-left space-y-1 z-15">
                   <p className="text-[8px] text-white/40 uppercase font-black">Pickup Checkpoint</p>
                   <p className="text-xs font-bold text-white">Mombasa Port (KE)</p>
@@ -340,14 +517,28 @@ const CustomerDashboard: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 text-left sm:text-right w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-white/5">
-                        <div className="space-y-0.5">
+                      <div className="flex items-center gap-3 text-left sm:text-right w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-white/5">
+                        <div className="space-y-0.5 mr-2">
                           <span className="text-[8px] text-white/40 uppercase font-black">ETA Delivery</span>
                           <p className="text-xs font-bold text-white">{shipment.estimatedDelivery}</p>
                         </div>
-                        <button className="btn btn-ghost border border-white/10 text-[10px] px-3.5 py-1.5 rounded-lg font-bold">
-                          Live Map
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setSelectedShipment(shipment); setIsShipmentModalOpen(true); }}
+                            className="btn btn-ghost border border-white/10 text-[10px] px-3.5 py-1.5 rounded-lg font-bold"
+                          >
+                            Live Map
+                          </button>
+                          {shipment.status === 'DELIVERED' && (
+                            <button
+                              onClick={() => { setRatingTripId(shipment.id); setIsRatingModalOpen(true); }}
+                              className="btn btn-primary text-[10px] px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1"
+                            >
+                              <Star size={10} className="fill-white" />
+                              <span>Rate</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -380,7 +571,11 @@ const CustomerDashboard: React.FC = () => {
                       </tr>
                     ) : (
                       quotes.map((q: any) => (
-                        <tr key={q.id} className="text-white/80 hover:bg-white/5 transition-all">
+                        <tr
+                          key={q.id}
+                          onClick={() => { setSelectedQuote(q); setIsQuoteModalOpen(true); }}
+                          className="text-white/80 hover:bg-white/5 transition-all cursor-pointer"
+                        >
                           <td className="py-4 font-semibold">
                             <span className="block text-xs">{q.pickupLocation}</span>
                             <span className="text-[9px] text-white/40">to {q.deliveryLocation}</span>
@@ -419,8 +614,8 @@ const CustomerDashboard: React.FC = () => {
                       <th className="pb-3">Invoice ID</th>
                       <th className="pb-3">Date Generated</th>
                       <th className="pb-3">Due Date</th>
-                      <th className="pb-3 text-right">Tonnage Rate</th>
-                      <th className="pb-3 text-right">Payment</th>
+                      <th className="pb-3 text-right">Amount</th>
+                      <th className="pb-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -437,12 +632,24 @@ const CustomerDashboard: React.FC = () => {
                           <td className="py-4 text-right font-black text-white">
                             {convertAndFormatCurrency(inv.amount, currency)}
                           </td>
-                          <td className="py-4 text-right">
-                            <span className={`badge ${
-                              inv.status === 'PAID' ? 'badge-success' : 'badge-primary'
-                            } text-[8px] font-bold`}>
-                              {inv.status}
-                            </span>
+                          <td className="py-4 text-right space-x-2">
+                            {inv.status !== 'PAID' ? (
+                              <button
+                                onClick={() => { setSelectedInvoice(inv); setIsInvoiceModalOpen(true); }}
+                                className="btn btn-primary text-[9px] px-3 py-1 rounded-lg font-bold"
+                              >
+                                Pay Now
+                              </button>
+                            ) : (
+                              <span className="badge badge-success text-[8px] font-bold">PAID</span>
+                            )}
+                            <button
+                              onClick={() => handleDownloadInvoice(inv)}
+                              className="btn btn-ghost border border-white/10 text-[9px] p-1.5 rounded-lg hover:border-orange-500/50"
+                              title="Download PDF confirmation"
+                            >
+                              <Download size={10} />
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -523,12 +730,48 @@ const CustomerDashboard: React.FC = () => {
                   onChange={(e) => setQuoteForm({ ...quoteForm, containerType: e.target.value })}
                   className="input-field text-xs bg-white/5 border-white/10 text-white"
                 >
-                  <option value="20FT" className="bg-black">20FT Container</option>
-                  <option value="40FT" className="bg-black">40FT Container</option>
+                  <option value="20FT" className="bg-black">20FT Dry Van</option>
+                  <option value="40FT" className="bg-black">40FT Dry Van</option>
                   <option value="40HC" className="bg-black">40FT High Cube</option>
                   <option value="REEFER" className="bg-black">Reefer Container</option>
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Cargo Declared Value (KES)</label>
+              <input
+                type="number"
+                value={quoteForm.declaredValue}
+                onChange={(e) => setQuoteForm({ ...quoteForm, declaredValue: e.target.value })}
+                placeholder="e.g. 1200000"
+                className="input-field text-xs"
+              />
+              {formErrors.declaredValue && (
+                <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.declaredValue}</span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={quoteForm.isHazmat}
+                  onChange={(e) => setQuoteForm({ ...quoteForm, isHazmat: e.target.checked })}
+                  className="accent-orange-500 rounded bg-white/5 border-white/10"
+                />
+                <span className="text-[10px] text-white/70 font-semibold uppercase">Hazmat Surcharge</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={quoteForm.isExpress}
+                  onChange={(e) => setQuoteForm({ ...quoteForm, isExpress: e.target.checked })}
+                  className="accent-orange-500 rounded bg-white/5 border-white/10"
+                />
+                <span className="text-[10px] text-white/70 font-semibold uppercase">Express Surcharge</span>
+              </label>
             </div>
 
             <div>
@@ -564,6 +807,410 @@ const CustomerDashboard: React.FC = () => {
           </form>
         </div>
       </div>
+
+      {/* ─── MODAL: QUOTE DETAIL & PRICE BREAKDOWN ─── */}
+      {isQuoteModalOpen && selectedQuote && (() => {
+        const pricing = getPricingBreakdown(selectedQuote);
+        return (
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
+              <button
+                onClick={() => setIsQuoteModalOpen(false)}
+                className="absolute top-4 right-4 text-white/40 hover:text-white"
+              >
+                <X size={14} />
+              </button>
+              <div>
+                <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+                  <ClipboardList size={14} className="text-orange-500" />
+                  <span>Quote Itemization Breakdown</span>
+                </h3>
+                <p className="text-[10px] text-white/40 mt-1">Detailed transparency breakdown for route: {selectedQuote.pickupLocation} to {selectedQuote.deliveryLocation}</p>
+              </div>
+
+              <div className="space-y-3.5 border-y border-white/5 py-4 text-xs">
+                <div className="flex justify-between items-center text-white/60">
+                  <span>Base Charge (Corridor Rate Card)</span>
+                  <span className="font-semibold">{convertAndFormatCurrency(pricing?.base || 0, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-white/60">
+                  <span>Tonnage Surcharge ({selectedQuote.weightTons} Tons)</span>
+                  <span className="font-semibold">{convertAndFormatCurrency(pricing?.weightFee || 0, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-white/60">
+                  <span>Distance Transit Rate (OSRM calculated)</span>
+                  <span className="font-semibold">{convertAndFormatCurrency(pricing?.distanceFee || 0, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-white/60">
+                  <span>Hazmat & Priority Multipliers</span>
+                  <span className="font-semibold">{convertAndFormatCurrency(pricing?.surcharges || 0, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-white/60">
+                  <span>Cargo Insurance Levy (Declared Value)</span>
+                  <span className="font-semibold">{convertAndFormatCurrency(pricing?.insurance || 0, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-emerald-400">
+                  <span>Loyalty Discount (Volume Tier)</span>
+                  <span>{convertAndFormatCurrency(pricing?.discount || 0, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-white/10 pt-3 text-sm font-black text-white">
+                  <span className="uppercase">Net Estimated Quote</span>
+                  <span className="text-orange-500">{convertAndFormatCurrency(pricing?.total || 0, currency)}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    toast.success('Quote booked successfully! Invoice generated.');
+                    setIsQuoteModalOpen(false);
+                    refetchInvoices();
+                    refetchDash();
+                  }}
+                  className="flex-1 btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider"
+                >
+                  Accept & Book Corridor Trip
+                </button>
+                <button
+                  onClick={() => setIsQuoteModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-white/10 text-white/80 hover:text-white text-xs font-bold"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── MODAL: SHIPMENT TRACKING & GPS REPLAY ─── */}
+      {isShipmentModalOpen && selectedShipment && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-2xl space-y-6 relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setIsShipmentModalOpen(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-white/5">
+              <div>
+                <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+                  <Activity size={14} className="text-orange-500 animate-pulse" />
+                  <span>Shipment Live Tracking Panel ({selectedShipment.trackingNumber})</span>
+                </h3>
+                <p className="text-[10px] text-white/40">Pickup: {selectedShipment.pickup} | Destination: {selectedShipment.delivery}</p>
+              </div>
+              <span className="badge badge-success text-[8px] font-bold uppercase tracking-wider">Nominal Corridor Transit</span>
+            </div>
+
+            {/* Map Simulation */}
+            <div className="w-full h-64 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden flex flex-col justify-between p-4">
+              {/* Geofence Indicators */}
+              <div className="absolute top-4 right-4 flex flex-col gap-1.5 text-right z-20">
+                <span className="badge bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[7px] font-bold px-2 py-0.5">
+                  GEOFENCE: ENTERED MOMBASA ZONE
+                </span>
+                <span className="badge bg-orange-500/10 text-orange-400 border border-orange-500/20 text-[7px] font-bold px-2 py-0.5">
+                  GEOFENCE: EN-ROUTE TAITA
+                </span>
+              </div>
+
+              {/* Route Graphics */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 600 240">
+                <path d="M 60,180 Q 300,40 540,150" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                <path d="M 60,180 Q 300,40 540,150" fill="none" stroke="#f97316" strokeWidth="2" strokeDasharray="5,5" />
+                
+                {/* Moving dot based on replay slider */}
+                <circle
+                  cx={60 + (480 * (replayProgress / 100))}
+                  cy={180 - (100 * Math.sin((replayProgress / 100) * Math.PI))}
+                  r="10"
+                  fill="#f97316"
+                  className="animate-ping opacity-60"
+                />
+                <circle
+                  cx={60 + (480 * (replayProgress / 100))}
+                  cy={180 - (100 * Math.sin((replayProgress / 100) * Math.PI))}
+                  r="6"
+                  fill="#f97316"
+                />
+              </svg>
+
+              <div className="flex justify-between items-start z-10">
+                <div className="space-y-1">
+                  <p className="text-[7px] text-white/40 uppercase font-black">Current GPS Ping</p>
+                  <p className="text-[10px] text-white font-semibold">Lat: -3.3142, Lng: 38.3182 (Taita Hills Corridor)</p>
+                </div>
+                <div className="bg-black/60 px-3 py-1 rounded border border-white/10 text-[9px] text-white font-mono flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span>Route status: OK</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-end z-10 border-t border-white/5 pt-2">
+                <div>
+                  <span className="text-[7px] text-white/40 uppercase font-black block">Origin</span>
+                  <span className="text-[10px] text-white font-bold">{selectedShipment.pickup}</span>
+                </div>
+                <div>
+                  <span className="text-[7px] text-white/40 uppercase font-black block text-right">Destination</span>
+                  <span className="text-[10px] text-white font-bold">{selectedShipment.delivery}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Replay Timeline Slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-white/40 font-bold uppercase text-[9px]">Location History Replay</span>
+                <button
+                  onClick={() => setIsReplaying(!isReplaying)}
+                  className="btn btn-ghost border border-white/10 text-[9px] px-3 py-1 rounded-lg flex items-center gap-1 font-bold"
+                >
+                  {isReplaying ? <Pause size={10} /> : <Play size={10} />}
+                  <span>{isReplaying ? 'Pause Replay' : 'Play Timeline'}</span>
+                </button>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={replayProgress}
+                onChange={(e) => setReplayProgress(parseInt(e.target.value))}
+                className="w-full accent-orange-500 h-1 bg-white/10 rounded-lg cursor-pointer appearance-none"
+              />
+              <div className="flex justify-between text-[9px] text-white/40 font-semibold">
+                <span>0% Journey (Mombasa)</span>
+                <span>50% Mid-point (Taita Corridor)</span>
+                <span>100% Complete (Kampala)</span>
+              </div>
+            </div>
+
+            {/* Countdown Widget */}
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5 grid grid-cols-4 gap-4 text-center">
+              {[
+                { label: 'Days', val: '01' },
+                { label: 'Hours', val: '14' },
+                { label: 'Minutes', val: '28' },
+                { label: 'Seconds', val: '59' }
+              ].map((c, i) => (
+                <div key={i} className="space-y-1">
+                  <p className="text-xl font-black text-white">{c.val}</p>
+                  <p className="text-[8px] text-white/40 uppercase font-bold tracking-wider">{c.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: INVOICE BILLING & CLICKPESA CHECKOUT ─── */}
+      {isInvoiceModalOpen && selectedInvoice && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setIsInvoiceModalOpen(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+            <div>
+              <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+                <CreditCard size={14} className="text-orange-500" />
+                <span>ClickPesa Payment Gateway Checkout</span>
+              </h3>
+              <p className="text-[10px] text-white/40 mt-1">Invoice Ref: {selectedInvoice.id.slice(0, 12).toUpperCase()} | Due: {selectedInvoice.dueDate}</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center text-xs">
+              <span className="text-white/60 font-bold uppercase tracking-wider text-[9px]">Corridor Billing Rate</span>
+              <span className="text-lg font-black text-white">{convertAndFormatCurrency(selectedInvoice.amount, currency)}</span>
+            </div>
+
+            {/* Payment Method Selector */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'MPESA', label: 'Mobile Money' },
+                { id: 'STRIPE', label: 'Credit Card' },
+                { id: 'BANK_TRANSFER', label: 'Bank Wire' }
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setPaymentMethod(m.id as any)}
+                  className={`py-2.5 rounded-xl border text-[9px] uppercase font-bold tracking-wider transition-all ${
+                    paymentMethod === m.id
+                      ? 'border-orange-500 text-orange-500 bg-orange-500/5'
+                      : 'border-white/10 text-white/60 hover:text-white'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Checkout Form */}
+            <form onSubmit={handlePaymentSubmit} className="space-y-4">
+              {paymentMethod === 'MPESA' && (
+                <div>
+                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">ClickPesa Connected Phone (M-Pesa / Airtel)</label>
+                  <input
+                    type="text"
+                    value={paymentForm.phoneNumber}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, phoneNumber: e.target.value })}
+                    placeholder="e.g. +254712345678"
+                    className="input-field text-xs"
+                    required
+                  />
+                  <p className="text-[8px] text-white/40 mt-1">You will receive an STK pin prompt on your device immediately.</p>
+                </div>
+              )}
+
+              {paymentMethod === 'STRIPE' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Cardholder Card Number</label>
+                    <input
+                      type="text"
+                      value={paymentForm.cardNumber}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, cardNumber: e.target.value })}
+                      placeholder="e.g. 4111 2222 3333 4444"
+                      className="input-field text-xs"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Expiry Date</label>
+                      <input
+                        type="text"
+                        value={paymentForm.cardExpiry}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, cardExpiry: e.target.value })}
+                        placeholder="MM/YY"
+                        className="input-field text-xs text-center"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">CVC Code</label>
+                      <input
+                        type="password"
+                        value={paymentForm.cardCvc}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, cardCvc: e.target.value })}
+                        placeholder="123"
+                        maxLength={3}
+                        className="input-field text-xs text-center"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'BANK_TRANSFER' && (
+                <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-[11px] text-white/60 space-y-2">
+                  <p className="font-bold text-white uppercase text-[8px] text-orange-500">Bank Transfer Details</p>
+                  <p>Bank: <strong>Tarxemo Standard Bank</strong></p>
+                  <p>Account Number: <strong>982635-1826-19</strong></p>
+                  <p>Reference: <strong>{selectedInvoice.id.slice(0, 8).toUpperCase()}</strong></p>
+                  <p className="text-[9px] text-white/30 pt-1">Confirm payment to receive automated validation within 2 hours.</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={paymentProcessing}
+                className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5"
+              >
+                {paymentProcessing ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>{stkPushWaiting ? 'Waiting for STK PIN entry...' : 'Confirming Checkout...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Submit Payment Gateway</span>
+                    <Send size={12} />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: DRIVER & TRIP RATING FEEDBACK ─── */}
+      {isRatingModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setIsRatingModalOpen(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+            <div>
+              <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1">
+                <Star size={14} className="text-orange-500 fill-orange-500" />
+                <span>Rate Cargo Delivery & Carrier Driver</span>
+              </h3>
+              <p className="text-[10px] text-white/40 mt-1">Your feedback updates driver profiles and maintains high service parameters.</p>
+            </div>
+
+            <form onSubmit={handleRatingSubmit} className="space-y-4">
+              {/* Star Rating select */}
+              <div className="flex justify-center gap-2 py-2">
+                {[1, 2, 3, 4, 5].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setRatingValue(val)}
+                    className="p-1 text-white/40 hover:scale-110 transition-all"
+                  >
+                    <Star
+                      size={28}
+                      className={val <= ratingValue ? 'text-yellow-400 fill-yellow-400' : 'text-white/20'}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              {/* Quick comment tags */}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {['Safe Driving', 'On Time', 'Accurate Location', 'Great Communication'].map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setRatingComment((prev) => (prev ? prev + ', ' + tag : tag))}
+                    className="px-2.5 py-1 rounded-full border border-white/10 hover:border-orange-500/50 text-[9px] font-semibold text-white/60 hover:text-white hover:bg-orange-500/5 transition-all"
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Feedback Comments</label>
+                <textarea
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder="Tell us about the delivery experience..."
+                  className="input-field text-xs h-20 resize-none"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider"
+              >
+                Submit Performance Rating
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
