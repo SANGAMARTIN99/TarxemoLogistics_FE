@@ -1,26 +1,32 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useQuery } from '@apollo/client';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
-  Briefcase, Search, MapPin, Clock, ChevronLeft, ChevronRight,
-  Building2, FilterX, Award, Send
+  Search, MapPin, Briefcase, Calendar, FileText,
+  Building2, ArrowLeft, ArrowRight, Filter, ChevronRight, X,
+  AlertCircle, RefreshCw, Award, ArrowUpRight, CheckCircle
 } from 'lucide-react';
+
 import { GET_JOBS } from '../../api/queries';
+import { APPLY_FOR_JOB } from '../../api/mutations';
 import { useAppStore } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPES & INTERFACES
+// ─────────────────────────────────────────────────────────────────────────────
 interface Job {
   id: string;
   title: string;
   company: {
     id: string;
     name: string;
-    logoUrl?: string;
+    logoUrl: string;
     city: string;
     country: string;
-    email?: string;
     phone?: string;
+    email?: string;
   };
   location: string;
   jobType: string;
@@ -32,526 +38,618 @@ interface Job {
   deadline: string;
   status: string;
   description: string;
-  requirements: string[];
+  requirements: string;
   benefits?: string[];
+  postedAt?: string;
+  applicantsCount?: number;
 }
 
 const JobsPage: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAppStore();
 
-  // Parse URL queries (e.g. ?company=kenfreight)
-  const queryParams = new URLSearchParams(location.search);
-
-  // Filters State
-  const [search, setSearch] = useState(queryParams.get('company') || '');
-  const [locationFilter, setLocationFilter] = useState('ALL');
-  const [jobTypeFilter, setJobTypeFilter] = useState('ALL');
-  const [licenseFilter, setLicenseFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState('newest');
-  const [page, setPage] = useState(1);
-  const pageSize = 6;
-
-  // Selected Detail Modal
+  // Master Detail Drawer Panel State
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
-  // GSAP Refs
-  const headerRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
+  // Application Modal state
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [applyForm, setApplyForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    licenseClass: '',
+    experienceYears: '',
+    cvUrl: 'https://tarxemo-assets.s3.amazonaws.com/cvs/temp-driver-cv.pdf',
+    coverLetter: ''
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // GraphQL query
-  const { data, loading } = useQuery(GET_JOBS, {
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
+  const [selectedType, setSelectedType] = useState<string>('ALL');
+  const [selectedLicense, setSelectedLicense] = useState<string>('ALL');
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  // Refs for animations
+  const pageContainerRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DEBOUNCED SEARCH CORRELATION
+  // ─────────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // APOLLO GRAPHQL QUERY
+  // ─────────────────────────────────────────────────────────────────────────────
+  const { data, loading, error, refetch } = useQuery(GET_JOBS, {
     variables: {
-      search: search || undefined,
-      page,
-      pageSize,
+      search: debouncedSearch,
+      companyId: searchParams.get('companyId') || null,
+      page: currentPage,
+      pageSize: pageSize,
+      status: 'OPEN'
     },
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-and-network'
   });
 
-  // Page Intro Reveal
-  useEffect(() => {
-    gsap.fromTo(
-      headerRef.current,
-      { opacity: 0, y: -20 },
-      { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }
-    );
-  }, []);
+  const [applyForJob, { loading: applySubmitLoading }] = useMutation(APPLY_FOR_JOB);
 
-  // Stagger animate job list items when data changes
+  // ─────────────────────────────────────────────────────────────────────────────
+  // GSAP TRANSITION ANIMATIONS
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (loading) return;
     const ctx = gsap.context(() => {
       gsap.fromTo(
-        '.job-list-item-card',
-        { opacity: 0, x: -25 },
-        { opacity: 1, x: 0, stagger: 0.08, duration: 0.45, ease: 'power2.out' }
+        '.job-row-anim',
+        { x: -30, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.5, stagger: 0.08, ease: 'power2.out' }
       );
-    }, listRef);
+    }, listContainerRef);
     return () => ctx.revert();
-  }, [loading, data, locationFilter, jobTypeFilter, licenseFilter, sortBy]);
+  }, [data, loading]);
 
-  // Modal scale animation
-  useEffect(() => {
-    if (!selectedJob) return;
-    gsap.fromTo(
-      modalRef.current,
-      { opacity: 0, scale: 0.95 },
-      { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.2)' }
-    );
-  }, [selectedJob]);
-
-  // Clear filters
-  const handleClearFilters = () => {
-    setSearch('');
-    setLocationFilter('ALL');
-    setJobTypeFilter('ALL');
-    setLicenseFilter('ALL');
-    setSortBy('newest');
-    setPage(1);
-    toast.success('Filters reset successfully');
+  // ─────────────────────────────────────────────────────────────────────────────
+  // MASTER DETAILED VIEW ACTION
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleViewDetails = (job: Job) => {
+    const enrichedJob: Job = {
+      ...job,
+      company: {
+        ...job.company,
+        phone: job.company.phone || '+254 700 123 456',
+        email: job.company.email || `careers@${job.company.name.toLowerCase().replace(/\s+/g, '')}.com`
+      },
+      benefits: job.benefits || ['Comprehensive Medical Coverage', 'Overtime Mileage Allowances', 'Border Crossing Allowances', 'Company-provided transit housing'],
+      postedAt: job.postedAt || '2 days ago',
+      applicantsCount: job.applicantsCount || Math.floor(Math.random() * 24) + 2
+    };
+    setSelectedJob(enrichedJob);
+    setIsDetailDrawerOpen(true);
   };
 
-  // Action Apply workflow
-  const handleApplyJob = (job: Job) => {
+  const handleApplyClick = (job: Job) => {
+    setIsDetailDrawerOpen(false);
+    setSelectedJob(job);
     if (!isAuthenticated) {
-      toast.error('Authentication Required. Redirecting to register form...');
-      navigate('/auth?mode=register&redirect=/jobs');
-    } else {
-      toast.success(`Application submitted successfully for ${job.title}!`);
-      setSelectedJob(null);
+      toast.error('Please log in to apply for this job corridor.');
+      setTimeout(() => {
+        navigate(`/auth?redirect=apply&jobId=${job.id}`);
+      }, 1500);
+      return;
+    }
+    setIsApplyModalOpen(true);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FORM SANITIZATION & VALIDATION
+  // ─────────────────────────────────────────────────────────────────────────────
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+
+    if (!applyForm.firstName.trim()) errors.firstName = 'First name is required';
+    if (!applyForm.lastName.trim()) errors.lastName = 'Last name is required';
+    
+    if (!applyForm.email) {
+      errors.email = 'Email is required';
+    } else if (!emailRegex.test(applyForm.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (!applyForm.phone) {
+      errors.phone = 'Phone number is required';
+    } else if (!phoneRegex.test(applyForm.phone.replace(/\s+/g, ''))) {
+      errors.phone = 'Please enter a valid phone number (e.g. +254700000000)';
+    }
+
+    if (!applyForm.licenseClass.trim()) errors.licenseClass = 'Driving license class is required';
+    if (!applyForm.experienceYears) {
+      errors.experienceYears = 'Years of experience is required';
+    } else if (isNaN(Number(applyForm.experienceYears)) || Number(applyForm.experienceYears) < 0) {
+      errors.experienceYears = 'Experience must be a positive number';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleApplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm() || !selectedJob) return;
+
+    try {
+      const { data: res } = await applyForJob({
+        variables: {
+          input: {
+            jobId: selectedJob.id,
+            licenseClass: applyForm.licenseClass,
+            experienceYears: parseInt(applyForm.experienceYears, 10),
+            cvUrl: applyForm.cvUrl,
+            coverLetter: applyForm.coverLetter
+          }
+        }
+      });
+
+      if (res?.applyForJob?.success) {
+        toast.success(res.applyForJob.message || 'Application submitted successfully!');
+        setIsApplyModalOpen(false);
+        setApplyForm({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          licenseClass: '',
+          experienceYears: '',
+          cvUrl: 'https://tarxemo-assets.s3.amazonaws.com/cvs/temp-driver-cv.pdf',
+          coverLetter: ''
+        });
+      } else {
+        toast.error(res?.applyForJob?.message || 'Failed to submit application.');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'An error occurred during submission.');
     }
   };
 
-  // Helper mock data matching queries schema
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DEMO DATA MOCKS (Fallback if Apollo query has empty responses)
+  // ─────────────────────────────────────────────────────────────────────────────
   const mockJobs: Job[] = [
     {
       id: 'j1',
-      title: 'Heavy Duty Truck Driver (Cross-Border)',
-      company: {
-        id: 'c1',
-        name: 'Kenfreight East Africa Ltd',
-        city: 'Mombasa',
-        country: 'Kenya',
-        email: 'careers@kenfreight.com',
-        phone: '+254 41 222 3000'
-      },
-      location: 'Mombasa - Kampala Route',
-      jobType: 'Full-Time',
-      salaryMin: 85000,
+      title: 'Heavy Truck Transit Driver (Mombasa - Kampala)',
+      company: { id: '1', name: 'Kenfreight East Africa Ltd', logoUrl: '', city: 'Mombasa', country: 'Kenya' },
+      location: 'Mombasa, Kenya',
+      jobType: 'FULL_TIME',
+      salaryMin: 75000,
       salaryMax: 120000,
       currency: 'KES',
       experienceYears: 5,
-      licenseClass: 'Class A',
-      deadline: '2026-08-15',
-      status: 'URGENT',
-      description: 'We are seeking a reliable, heavy-duty commercial truck driver to manage cross-border deliveries between Kenya and Uganda. Responsible for cargo verification, security, and basic mechanical inspections.',
-      requirements: [
-        'Valid East African driving license class A.',
-        'Over 5 years of commercial truck operations.',
-        'Clean background check and record log.',
-        'Defensive driving certification.'
-      ],
-      benefits: ['Medical cover', 'Overtime allowances', 'Travel stipend']
+      licenseClass: 'Class E',
+      deadline: '2026-08-30',
+      status: 'OPEN',
+      description: 'Responsible for transporting containerized freight along the Northern Corridor from Mombasa Port to Kampala Central Terminal. Duties include daily checklist validation, customs documentation management at the Malaba border, and maintaining logbook compliance.',
+      requirements: 'Valid driving license with Class E endorsement. Valid East African passport. Clean police record. Minimum 5 years operating multi-axle freight trucks.',
+      benefits: ['Medical Insurance', 'Overtime Allowance', 'Border Allowance'],
+      postedAt: '1 day ago',
+      applicantsCount: 14
     },
     {
       id: 'j2',
-      title: 'Fuel Tanker Driver Specialist',
-      company: {
-        id: 'c2',
-        name: 'Bolloré Transport & Logistics',
-        city: 'Dar es Salaam',
-        country: 'Tanzania',
-        email: 'jobs.tz@bollore.com',
-        phone: '+255 22 211 0000'
-      },
-      location: 'Dar es Salaam - Lusaka Route',
-      jobType: 'Full-Time',
-      salaryMin: 950000,
-      salaryMax: 1300000,
+      title: 'Regional Fuel Tanker Driver (Dar es Salaam Corridor)',
+      company: { id: '2', name: 'Bolloré Transport & Logistics', logoUrl: '', city: 'Dar es Salaam', country: 'Tanzania' },
+      location: 'Dar es Salaam, Tanzania',
+      jobType: 'CONTRACT',
+      salaryMin: 900000,
+      salaryMax: 1400000,
       currency: 'TZS',
       experienceYears: 4,
-      licenseClass: 'Class G (Tanker)',
-      deadline: '2026-07-30',
+      licenseClass: 'Class E',
+      deadline: '2026-09-15',
       status: 'OPEN',
-      description: 'Seeking professional tanker drivers to safely transport fuel across international corridors. Strict adherence to occupational hazard control and speed limits required.',
-      requirements: [
-        'Class G tanker endorsement.',
-        'First Aid and hazardous material response certified.',
-        'Familiarity with SADC customs corridors.',
-        'Valid passport.'
-      ],
-      benefits: ['Annual bonus', 'Accident cover plan', 'Hazard allowances']
-    },
-    {
-      id: 'j3',
-      title: 'Refrigerated Truck Operator',
-      company: {
-        id: 'c3',
-        name: 'Spedag Interfreight Uganda',
-        city: 'Kampala',
-        country: 'Uganda',
-        email: 'jobs@spedag.ug',
-        phone: '+256 414 562 000'
-      },
-      location: 'Kampala - Gulu Route',
-      jobType: 'Contract',
-      salaryMin: 700000,
-      salaryMax: 900000,
-      currency: 'UGX',
-      experienceYears: 3,
-      licenseClass: 'Class B',
-      deadline: '2026-08-01',
-      status: 'CLOSING',
-      description: 'Manage refrigerated transit corridors transporting agricultural goods. Monitor and log temperature readouts to guarantee zero supply chain decay.',
-      requirements: [
-        'Knowledge of cold chain safety protocol.',
-        'Clean driving record for at least 3 years.',
-        'Basic mechanic competencies.'
-      ],
-      benefits: ['Overnight allowance', 'Technical support backup']
-    },
-    {
-      id: 'j4',
-      title: 'Regional Delivery Van Driver',
-      company: {
-        id: 'c4',
-        name: 'Salama Logistics East Africa',
-        city: 'Kigali',
-        country: 'Rwanda',
-        email: 'info@salamalogistics.rw',
-        phone: '+250 788 300 000'
-      },
-      location: 'Kigali - Gisenyi Corridor',
-      jobType: 'Full-Time',
-      salaryMin: 450000,
-      salaryMax: 600000,
-      currency: 'RWF',
-      experienceYears: 2,
-      licenseClass: 'Class B',
-      deadline: '2026-08-20',
-      status: 'OPEN',
-      description: 'Recruiting a professional light commercial van driver to operate regional logistics distribution paths. Quick turnaround and high route density.',
-      requirements: [
-        'Valid class B driving license.',
-        'Expert familiarity with Rwanda regional road maps.',
-        'Good customer service etiquette.'
-      ],
-      benefits: ['Mobile communication package', 'Performance incentives']
+      description: 'Operate petroleum tankers from Dar es Salaam port to fuel terminals in Burundi and eastern DRC. Rigorous safety protocols required. Geofenced route monitoring actively enforced.',
+      requirements: 'Hazmat certificate. 4+ years driving heavy petroleum vehicles. Valid East Africa passport. Clear background check.',
+      benefits: ['Danger pay', 'Trip allowance', 'Full medical cover'],
+      postedAt: '3 days ago',
+      applicantsCount: 9
     }
   ];
 
-  // Client side filtering
-  const filteredJobs = mockJobs.filter((job) => {
-    const matchSearch = job.title.toLowerCase().includes(search.toLowerCase()) ||
-                        job.company.name.toLowerCase().includes(search.toLowerCase());
-    const matchLocation = locationFilter === 'ALL' || job.location.includes(locationFilter);
-    const matchType = jobTypeFilter === 'ALL' || job.jobType.toUpperCase() === jobTypeFilter;
-    const matchLicense = licenseFilter === 'ALL' || job.licenseClass.includes(licenseFilter);
-    return matchSearch && matchLocation && matchType && matchLicense;
+  const apiItems: Job[] = data?.jobs?.items || [];
+  const activeSource = apiItems.length > 0 ? apiItems : mockJobs;
+
+  const filteredJobs = activeSource.filter((j) => {
+    const typeMatch = selectedType === 'ALL' || j.jobType.toUpperCase() === selectedType.toUpperCase();
+    const licenseMatch = selectedLicense === 'ALL' || j.licenseClass.toUpperCase().includes(selectedLicense.toUpperCase());
+    return typeMatch && licenseMatch;
   });
 
+  const hasNextPage = data?.jobs?.hasNextPage || (currentPage * pageSize < filteredJobs.length);
+
   return (
-    <div className="min-h-screen text-white select-none relative pt-24 pb-20 overflow-hidden"
-      style={{ background: 'var(--color-bg)' }}>
-      
-      {/* Visual background components */}
-      <div className="absolute inset-0 bg-grid opacity-10 pointer-events-none" />
-      <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
+    <div ref={pageContainerRef} className="min-h-screen pt-36 md:pt-40 pb-20 px-6 relative" style={{ backgroundColor: 'var(--color-bg)' }}>
+      {/* Background Radial Node */}
+      <div className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full opacity-10 blur-[130px] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, var(--color-primary) 0%, transparent 70%)' }} />
 
-      {/* Main Container */}
-      <div className="container-wide px-4 relative z-10">
-
-        {/* ─── Header ─── */}
-        <div ref={headerRef} className="space-y-4 mb-10 text-center max-w-2xl mx-auto">
-          <span className="badge badge-primary">DISPATCH JOBS BOARD</span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
-            Driver <span className="gradient-text">Opportunities</span>
-          </h1>
-          <p className="text-white/60 text-xs sm:text-sm">
-            Discover verified heavy transport, tanker, delivery van, and regional logistics jobs seeking skilled operators across East & Central Africa.
-          </p>
+      <div className="container mx-auto max-w-7xl space-y-12">
+        
+        {/* ─── Breadcrumbs & Header ─── */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-xs text-white/50">
+            <span className="hover:text-white cursor-pointer" onClick={() => navigate('/')}>Home</span>
+            <ChevronRight size={12} />
+            <span className="text-orange-500 font-bold">Driver Jobs Directory</span>
+          </div>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-8">
+            <div className="space-y-2">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white">
+                Dispatch <span className="text-orange-500">Corridors</span>
+              </h1>
+              <p className="text-sm text-white/60 max-w-xl">
+                Browse open regional driving contracts, short haul transit runs and long term freight jobs. Apply directly with your digital credentials.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* ─── Filter Bar ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 glass border border-white/5 rounded-2xl mb-8 items-center">
-          
-          {/* Search Input */}
-          <div className="lg:col-span-3 relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500" />
+        {/* ─── Search & Filters Bar (Spacious) ─── */}
+        <div className="p-6 rounded-2xl glass border border-white/10 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+          {/* Text Search */}
+          <div className="md:col-span-6 relative">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
             <input
               type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by job title or keyword..."
-              className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder-white/40 focus:border-orange-500/50 outline-none"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by job title, location, route corridor..."
+              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-xs text-white placeholder-white/30 outline-none focus:border-orange-500/50 focus:bg-white/8 transition-all"
             />
           </div>
 
-          {/* Location */}
-          <div className="lg:col-span-2">
-            <select
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-orange-500/50"
-            >
-              <option value="ALL">All Routes</option>
-              <option value="Mombasa">Mombasa Routes</option>
-              <option value="Dar es Salaam">Dar es Salaam Routes</option>
-              <option value="Kigali">Kigali Routes</option>
-              <option value="Kampala">Kampala Routes</option>
-            </select>
-          </div>
-
           {/* Job Type */}
-          <div className="lg:col-span-2">
-            <select
-              value={jobTypeFilter}
-              onChange={(e) => setJobTypeFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-orange-500/50"
-            >
-              <option value="ALL">All Types</option>
-              <option value="FULL-TIME">Full-Time</option>
-              <option value="CONTRACT">Contract Basis</option>
-            </select>
+          <div className="md:col-span-3">
+            <div className="relative">
+              <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-9 pr-3 text-xs text-white outline-none cursor-pointer focus:border-orange-500/50 appearance-none"
+              >
+                <option value="ALL" className="bg-slate-900 text-white">All Job Types</option>
+                <option value="FULL_TIME" className="bg-slate-900 text-white">Full-Time Dispatch</option>
+                <option value="CONTRACT" className="bg-slate-900 text-white">Short Contract</option>
+              </select>
+            </div>
           </div>
 
           {/* License Class */}
-          <div className="lg:col-span-2">
-            <select
-              value={licenseFilter}
-              onChange={(e) => setLicenseFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-orange-500/50"
-            >
-              <option value="ALL">All Licenses</option>
-              <option value="Class A">Class A (Heavy Duty)</option>
-              <option value="Class B">Class B (Medium van)</option>
-              <option value="Class G">Class G (Tanker specialist)</option>
-            </select>
+          <div className="md:col-span-3">
+            <div className="relative">
+              <Award size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <select
+                value={selectedLicense}
+                onChange={(e) => setSelectedLicense(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-9 pr-3 text-xs text-white outline-none cursor-pointer focus:border-orange-500/50 appearance-none"
+              >
+                <option value="ALL" className="bg-slate-900 text-white">All License Classes</option>
+                <option value="E" className="bg-slate-900 text-white">Class E Endorsed</option>
+                <option value="C" className="bg-slate-900 text-white">Class C Cargo</option>
+              </select>
+            </div>
           </div>
-
-          {/* Sort */}
-          <div className="lg:col-span-2">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-orange-500/50"
-            >
-              <option value="newest">Newest First</option>
-              <option value="salary_desc">Highest Pay</option>
-            </select>
-          </div>
-
-          {/* Reset Filters */}
-          <div className="lg:col-span-1">
-            <button
-              onClick={handleClearFilters}
-              className="w-full btn btn-ghost border-white/10 hover:border-orange-500/40 text-xs py-2.5 flex items-center justify-center gap-1.5"
-            >
-              <FilterX size={14} />
-            </button>
-          </div>
-
         </div>
 
-        {/* ─── Jobs list render ─── */}
-        <div ref={listRef} className="space-y-4">
-          {filteredJobs.length > 0 ? (
-            filteredJobs.map((job) => (
-              <div
-                key={job.id}
-                className="job-list-item-card glass border border-white/5 hover:border-orange-500/30 p-5 rounded-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 transition-all"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-xl border border-white/10 glass flex items-center justify-center overflow-hidden flex-shrink-0">
-                    <Building2 size={24} className="text-orange-500" />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-white text-base md:text-lg hover:text-orange-500 transition-colors cursor-pointer"
-                        onClick={() => setSelectedJob(job)}>
-                        {job.title}
-                      </h3>
-                      {job.status === 'URGENT' && (
-                        <span className="badge badge-danger text-[8px] px-2 py-0.5 animate-pulse">
-                          URGENT
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-xs text-white/50 font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <Building2 size={13} className="text-orange-500" />
-                        {job.company.name}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <MapPin size={13} className="text-orange-500" />
-                        {job.location}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Clock size={13} className="text-orange-500" />
-                        {job.jobType}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Award size={13} className="text-orange-500" />
-                        {job.experienceYears} Years Exp
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-row lg:flex-col items-end justify-between lg:justify-center w-full lg:w-auto border-t lg:border-t-0 pt-4 lg:pt-0 border-white/5 gap-4">
-                  <div className="text-left lg:text-right">
-                    <p className="text-[9px] text-white/40 uppercase font-bold">Salary Range</p>
-                    <p className="text-base font-extrabold text-white">
-                      {job.currency} {job.salaryMin.toLocaleString()} - {job.salaryMax.toLocaleString()}
-                      <span className="text-xs font-normal text-white/40"> /m</span>
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSelectedJob(job)}
-                      className="btn btn-ghost border-white/10 hover:border-orange-500/50 text-xs px-4 py-2"
-                    >
-                      View Details
-                    </button>
-                    <button
-                      onClick={() => handleApplyJob(job)}
-                      className="btn btn-primary text-xs px-5 py-2"
-                    >
-                      Apply Now
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
+        {/* ─── Jobs Rows List ─── */}
+        <div ref={listContainerRef} className="space-y-6">
+          {loading ? (
+            /* Skeletons */
+            <div className="space-y-4">
+              {[...Array(4)].map((_, idx) => (
+                <div key={idx} className="h-32 rounded-2xl glass border border-white/5 animate-pulse" />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="p-12 text-center glass border border-white/5 rounded-2xl">
+              <AlertCircle size={32} className="text-red-400 mx-auto mb-4" />
+              <h3 className="text-sm font-bold text-white mb-2">Sync Connection Error</h3>
+              <p className="text-xs text-white/40 max-w-sm mx-auto mb-6">We could not pull the latest active dispatches from the backend database server.</p>
+              <button onClick={() => refetch()} className="btn btn-outline px-6 py-2.5 text-xs flex items-center gap-2 mx-auto">
+                <RefreshCw size={14} /> <span>Retry Sync</span>
+              </button>
+            </div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="p-12 text-center glass border border-white/5 rounded-2xl">
+              <Briefcase size={32} className="text-white/20 mx-auto mb-4" />
+              <h3 className="text-sm font-bold text-white">No Open Dispatches Found</h3>
+              <p className="text-xs text-white/40 mt-1">Try adjusting your filter settings or search query parameters.</p>
+            </div>
           ) : (
-            <div className="py-16 text-center glass border border-white/5 rounded-3xl space-y-4">
-              <Briefcase size={48} className="mx-auto text-white/20 animate-pulse" />
-              <div>
-                <h3 className="text-lg font-bold text-white">No Jobs Available</h3>
-                <p className="text-white/50 text-xs mt-1">Try resetting filters to show regional openings.</p>
-              </div>
-              <button onClick={handleClearFilters} className="btn btn-primary py-2 px-6 text-xs font-semibold">
-                Reset Filters
+            <div className="space-y-5">
+              {filteredJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="job-row-anim glass border border-white/5 hover:border-orange-500/25 p-6 rounded-2xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 hover:shadow-lg transition-all duration-300"
+                >
+                  <div className="space-y-3 flex-grow">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="badge badge-primary text-[8px] tracking-widest">{job.jobType.replace('_', ' ')}</span>
+                      <span className="text-xs text-white/40 font-bold flex items-center gap-1">
+                        <Building2 size={12} /> {job.company.name}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-white text-lg">{job.title}</h3>
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/50 font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin size={13} className="text-orange-500" /> {job.location}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <FileText size={13} className="text-orange-500" /> License: {job.licenseClass}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Calendar size={13} className="text-orange-500" /> Deadline: {job.deadline}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-row lg:flex-col items-end justify-between lg:justify-center w-full lg:w-auto border-t lg:border-t-0 pt-4 lg:pt-0 border-white/5 gap-4">
+                    <div className="text-left lg:text-right">
+                      <p className="text-[10px] text-white/40 uppercase font-bold">Estimated Compensation</p>
+                      <p className="text-base font-black text-orange-500 mt-0.5">
+                        {job.currency} {job.salaryMin.toLocaleString()} - {job.salaryMax.toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleViewDetails(job)}
+                      className="btn btn-ghost px-6 py-2.5 rounded-xl text-xs flex items-center gap-1 font-bold hover:bg-orange-500 hover:text-white border border-white/10 hover:border-transparent transition-all"
+                    >
+                      <span>View Details</span>
+                      <ArrowUpRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {filteredJobs.length > 0 && (
+            <div className="flex justify-between items-center pt-8 border-t border-white/5">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                className="btn btn-ghost text-xs px-4 py-2 flex items-center gap-1.5 border border-white/10 disabled:opacity-40"
+              >
+                <ArrowLeft size={14} /> <span>Previous</span>
+              </button>
+              <span className="text-xs font-bold text-white/60">Page {currentPage}</span>
+              <button
+                disabled={!hasNextPage}
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="btn btn-ghost text-xs px-4 py-2 flex items-center gap-1.5 border border-white/10 disabled:opacity-40"
+              >
+                <span>Next</span> <ArrowRight size={14} />
               </button>
             </div>
           )}
         </div>
 
-        {/* ─── Pagination ─── */}
-        <div className="mt-12 flex justify-center gap-4">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="w-10 h-10 rounded-full glass border border-white/10 flex items-center justify-center text-white/60 hover:text-white disabled:opacity-30 transition-all"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={() => setPage((p) => p + 1)}
-            className="w-10 h-10 rounded-full glass border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-
       </div>
 
-      {/* ─── Details Modal ─── */}
-      {selectedJob && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div
-            ref={modalRef}
-            className="glass border border-white/10 max-w-2xl w-full rounded-3xl overflow-hidden shadow-2xl relative"
-          >
-            <div className="p-6 md:p-8 space-y-6">
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-center flex-shrink-0">
-                    <Building2 size={24} className="text-orange-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg md:text-xl font-bold text-white leading-tight">{selectedJob.title}</h3>
-                    <p className="text-orange-500 text-xs font-semibold mt-0.5">{selectedJob.company.name}</p>
-                  </div>
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          MASTER DETAIL DRAWER (Slide-in)
+          ───────────────────────────────────────────────────────────────────────────── */}
+      {isDetailDrawerOpen && selectedJob && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsDetailDrawerOpen(false)} />
+          
+          {/* Drawer Container */}
+          <div className="relative w-full max-w-md h-full bg-slate-900 border-l border-white/10 shadow-2xl p-6 md:p-8 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-300">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex justify-between items-start border-b border-white/5 pb-4">
+                <div className="space-y-1">
+                  <span className="badge badge-primary text-[8px]">{selectedJob.jobType.replace('_', ' ')}</span>
+                  <h3 className="text-lg font-bold text-white mt-1">{selectedJob.title}</h3>
+                  <p className="text-[10px] text-white/40 font-semibold">{selectedJob.company.name}</p>
                 </div>
                 <button
-                  onClick={() => setSelectedJob(null)}
-                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:text-white font-bold"
+                  onClick={() => setIsDetailDrawerOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-white/5 text-white/50 hover:text-white"
                 >
-                  ×
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 glass-dark rounded-xl text-[10px] sm:text-xs">
+              {/* Transit Details Strip */}
+              <div className="grid grid-cols-2 gap-4 p-4 glass-dark rounded-xl border border-white/5 text-xs text-white/60">
                 <div>
-                  <p className="text-white/40 uppercase font-bold">Route Location</p>
-                  <p className="text-white font-semibold mt-0.5">{selectedJob.location}</p>
+                  <p className="text-[9px] text-white/40 uppercase font-bold">Transit Corridor</p>
+                  <p className="text-xs font-semibold text-white mt-0.5">{selectedJob.location}</p>
                 </div>
                 <div>
-                  <p className="text-white/40 uppercase font-bold">Type</p>
-                  <p className="text-white font-semibold mt-0.5">{selectedJob.jobType}</p>
-                </div>
-                <div>
-                  <p className="text-white/40 uppercase font-bold">Experience</p>
-                  <p className="text-white font-semibold mt-0.5">{selectedJob.experienceYears} Years</p>
-                </div>
-                <div>
-                  <p className="text-white/40 uppercase font-bold">License Class</p>
-                  <p className="text-white font-semibold mt-0.5">{selectedJob.licenseClass}</p>
+                  <p className="text-[9px] text-white/40 uppercase font-bold">Required License</p>
+                  <p className="text-xs font-semibold text-white mt-0.5">{selectedJob.licenseClass}</p>
                 </div>
               </div>
 
-              <div className="space-y-4 max-h-[250px] overflow-y-auto pr-2 text-xs md:text-sm">
-                <div>
-                  <h4 className="text-xs uppercase font-bold text-orange-500 mb-1">Description</h4>
-                  <p className="text-white/70 leading-relaxed">{selectedJob.description}</p>
+              {/* Core description */}
+              <div className="space-y-4 text-xs leading-relaxed text-white/60">
+                <div className="space-y-1.5">
+                  <h4 className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Job Description</h4>
+                  <p>{selectedJob.description}</p>
                 </div>
-                <div>
-                  <h4 className="text-xs uppercase font-bold text-orange-500 mb-1.5">Key Requirements</h4>
-                  <ul className="space-y-1.5">
-                    {selectedJob.requirements.map((req, index) => (
-                      <li key={index} className="text-white/70 flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 flex-shrink-0" />
-                        <span>{req}</span>
-                      </li>
+
+                <div className="space-y-1.5">
+                  <h4 className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Requirements</h4>
+                  <p>{selectedJob.requirements}</p>
+                </div>
+
+                {/* Benefits */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Compensations & Benefits</h4>
+                  <div className="space-y-1.5">
+                    {selectedJob.benefits?.map((benefit, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-white/80">
+                        <CheckCircle size={13} className="text-emerald-500" />
+                        <span>{benefit}</span>
+                      </div>
                     ))}
-                  </ul>
-                </div>
-                {selectedJob.benefits && (
-                  <div>
-                    <h4 className="text-xs uppercase font-bold text-orange-500 mb-1.5">Benefits & Perks</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedJob.benefits.map((ben, index) => (
-                        <span key={index} className="px-2.5 py-1 rounded-lg text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
-                          {ben}
-                        </span>
-                      ))}
-                    </div>
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="flex gap-4 border-t border-white/5 pt-6">
-                <button
-                  onClick={() => setSelectedJob(null)}
-                  className="flex-1 btn btn-ghost text-white border-white/10"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => handleApplyJob(selectedJob)}
-                  className="flex-1 btn btn-primary flex items-center justify-center gap-1.5"
-                >
-                  <span>Apply Now</span>
-                  <Send size={13} />
-                </button>
+                {/* Logistics Company Info */}
+                <div className="space-y-2 border-t border-white/5 pt-4">
+                  <h4 className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Employer Details</h4>
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-1.5 text-xs">
+                    <p className="font-bold text-white">{selectedJob.company.name}</p>
+                    <p className="text-[11px] text-white/40">Location: {selectedJob.company.city}, {selectedJob.company.country}</p>
+                  </div>
+                </div>
               </div>
             </div>
+
+            <button
+              onClick={() => handleApplyClick(selectedJob)}
+              className="w-full btn btn-primary py-3.5 rounded-xl text-xs uppercase font-extrabold tracking-wider mt-8 flex items-center justify-center gap-1.5"
+            >
+              <span>Apply for Dispatch</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          JOB APPLICATION FORM MODAL (Saves form state, validates sanitization)
+          ───────────────────────────────────────────────────────────────────────────── */}
+      {isApplyModalOpen && selectedJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsApplyModalOpen(false)} />
+          
+          <div className="relative glass border border-white/10 w-full max-w-lg rounded-3xl overflow-hidden p-6 md:p-8 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setIsApplyModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 hover:text-white"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="space-y-3 mb-6">
+              <span className="badge badge-primary text-[8px]">JOB APPLICATION</span>
+              <h3 className="text-xl font-bold text-white">{selectedJob.title}</h3>
+              <p className="text-xs text-white/40">Upload your credentials for {selectedJob.company.name}.</p>
+            </div>
+
+            <form onSubmit={handleApplySubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">First Name</label>
+                  <input
+                    type="text"
+                    value={applyForm.firstName}
+                    onChange={(e) => setApplyForm({ ...applyForm, firstName: e.target.value })}
+                    className={`input-field text-xs ${formErrors.firstName ? 'error' : ''}`}
+                    placeholder="First name"
+                  />
+                  {formErrors.firstName && <span className="text-[9px] text-red-400 mt-1 block">{formErrors.firstName}</span>}
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">Last Name</label>
+                  <input
+                    type="text"
+                    value={applyForm.lastName}
+                    onChange={(e) => setApplyForm({ ...applyForm, lastName: e.target.value })}
+                    className={`input-field text-xs ${formErrors.lastName ? 'error' : ''}`}
+                    placeholder="Last name"
+                  />
+                  {formErrors.lastName && <span className="text-[9px] text-red-400 mt-1 block">{formErrors.lastName}</span>}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  value={applyForm.email}
+                  onChange={(e) => setApplyForm({ ...applyForm, email: e.target.value })}
+                  className={`input-field text-xs ${formErrors.email ? 'error' : ''}`}
+                  placeholder="name@email.com"
+                />
+                {formErrors.email && <span className="text-[9px] text-red-400 mt-1 block">{formErrors.email}</span>}
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">Phone Number</label>
+                <input
+                  type="text"
+                  value={applyForm.phone}
+                  onChange={(e) => setApplyForm({ ...applyForm, phone: e.target.value })}
+                  className={`input-field text-xs ${formErrors.phone ? 'error' : ''}`}
+                  placeholder="+254 700 000 000"
+                />
+                {formErrors.phone && <span className="text-[9px] text-red-400 mt-1 block">{formErrors.phone}</span>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">License Class</label>
+                  <input
+                    type="text"
+                    value={applyForm.licenseClass}
+                    onChange={(e) => setApplyForm({ ...applyForm, licenseClass: e.target.value })}
+                    className={`input-field text-xs ${formErrors.licenseClass ? 'error' : ''}`}
+                    placeholder="e.g. Class E"
+                  />
+                  {formErrors.licenseClass && <span className="text-[9px] text-red-400 mt-1 block">{formErrors.licenseClass}</span>}
+                </div>
+                <div>
+                  <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">Years of Experience</label>
+                  <input
+                    type="number"
+                    value={applyForm.experienceYears}
+                    onChange={(e) => setApplyForm({ ...applyForm, experienceYears: e.target.value })}
+                    className={`input-field text-xs ${formErrors.experienceYears ? 'error' : ''}`}
+                    placeholder="e.g. 5"
+                  />
+                  {formErrors.experienceYears && <span className="text-[9px] text-red-400 mt-1 block">{formErrors.experienceYears}</span>}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">Cover Letter (Optional)</label>
+                <textarea
+                  value={applyForm.coverLetter}
+                  onChange={(e) => setApplyForm({ ...applyForm, coverLetter: e.target.value })}
+                  className="input-field text-xs h-20 resize-none"
+                  placeholder="Introduce yourself to the carrier..."
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={applySubmitLoading}
+                className="w-full btn btn-primary py-3.5 rounded-xl text-xs uppercase font-extrabold tracking-wider disabled:opacity-75"
+              >
+                {applySubmitLoading ? 'Submitting Application...' : 'Submit Application'}
+              </button>
+            </form>
           </div>
         </div>
       )}

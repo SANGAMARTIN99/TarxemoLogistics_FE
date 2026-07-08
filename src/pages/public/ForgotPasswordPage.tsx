@@ -1,434 +1,538 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useLazyQuery } from '@apollo/client';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
-  Mail, KeyRound, Eye, EyeOff, Check,
-  Loader2, ArrowRight, ChevronLeft,
-  Send, Lock
+  Mail, KeyRound, Lock, ArrowLeft, ArrowRight,
+  Send, Flame, MailOpen, Eye, EyeOff
 } from 'lucide-react';
+
 import { REQUEST_PASSWORD_RESET, VERIFY_OTP, RESET_PASSWORD } from '../../api/mutations';
-import { CHECK_EMAIL_EXISTS } from '../../api/queries';
 import toast from 'react-hot-toast';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FORGOT PASSWORD CONTROLLER
+// ─────────────────────────────────────────────────────────────────────────────
 const ForgotPasswordPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // Reset steps: 1 = Enter Email, 2 = Enter OTP, 3 = New Password, 4 = Success Card
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-
-  // States
+  // Reset steps: 1 = Email validation, 2 = OTP check, 3 = Reset Password
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [resetToken, setResetToken] = useState('');
-
-  // UI state toggles
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [otpTimer, setOtpTimer] = useState(120); // 2 minutes countdown
 
-  // Container refs for animations
-  const containerRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  // Verification codes/tokens
+  const [resetToken, setResetToken] = useState('');
+  const [mockOtpCode, setMockOtpCode] = useState('284719'); // Simulated OTP sent to email
 
-  // GraphQL Actions
-  const [checkEmailExists, { loading: checkingEmail }] = useLazyQuery(CHECK_EMAIL_EXISTS);
-  const [requestReset, { loading: requestingReset }] = useMutation(REQUEST_PASSWORD_RESET);
-  const [verifyOtpMutation, { loading: verifyingOtp }] = useMutation(VERIFY_OTP);
-  const [resetPasswordMutation, { loading: resettingPassword }] = useMutation(RESET_PASSWORD);
+  // Timer states
+  const [countdown, setCountdown] = useState(120); // 2 minutes
+  const [canResend, setCanResend] = useState(false);
 
-  // Intro reveal animations
+  // Form input validation status
+  const [emailError, setEmailError] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [pwdError, setPwdError] = useState('');
+
+  // Refs for animations
+  const leftPaneRef = useRef<HTMLDivElement>(null);
+  const emailSandboxRef = useRef<HTMLDivElement>(null);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // APOLLO GRAPHQL MUTATIONS
+  // ─────────────────────────────────────────────────────────────────────────────
+  const [requestReset, { loading: requestLoading }] = useMutation(REQUEST_PASSWORD_RESET);
+  const [verifyOtp, { loading: verifyLoading }] = useMutation(VERIFY_OTP);
+  const [resetPassword, { loading: resetLoading }] = useMutation(RESET_PASSWORD);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // GSAP ON-LOAD ANIMATIONS
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    gsap.fromTo(
-      cardRef.current,
-      { opacity: 0, scale: 0.92, y: 25 },
-      { opacity: 1, scale: 1, y: 0, duration: 0.7, ease: 'back.out(1.2)' }
-    );
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        leftPaneRef.current,
+        { x: -40, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.8, ease: 'power3.out' }
+      );
+      gsap.fromTo(
+        emailSandboxRef.current,
+        { x: 40, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.8, ease: 'power3.out', delay: 0.15 }
+      );
+    });
+    return () => ctx.revert();
   }, []);
 
-  // Timer countdown implementation for step 2 (OTP validation window)
+  // ─────────────────────────────────────────────────────────────────────────────
+  // OTP COUNTDOWN TIMER EFFECT
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (step !== 2 || otpTimer <= 0) return;
-    const interval = setInterval(() => {
-      setOtpTimer((prev) => prev - 1);
+    if (step !== 2 || countdown <= 0) {
+      if (countdown === 0) setCanResend(true);
+      return;
+    }
+    const timer = setInterval(() => {
+      setCountdown((prev) => prev - 1);
     }, 1000);
-    return () => clearInterval(interval);
-  }, [step, otpTimer]);
+    return () => clearInterval(timer);
+  }, [step, countdown]);
 
-  const handleStepTransition = (nextStep: 1 | 2 | 3 | 4) => {
-    gsap.to(cardRef.current, {
-      opacity: 0,
-      scale: 0.95,
-      y: 15,
-      duration: 0.25,
-      onComplete: () => {
-        setStep(nextStep);
-        gsap.fromTo(
-          cardRef.current,
-          { opacity: 0, scale: 0.95, y: -15 },
-          { opacity: 1, scale: 1, y: 0, duration: 0.35, ease: 'power2.out' }
-        );
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    try {
+      const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+      setMockOtpCode(generatedCode);
+      setCountdown(120);
+      setCanResend(false);
+
+      const { data } = await requestReset({ variables: { email } });
+      if (data?.requestPasswordReset?.success) {
+        toast.success('A new OTP security token has been dispatched!');
+      } else {
+        toast.error('Unable to request OTP code. Check connection.');
       }
-    });
+    } catch {
+      toast.success('Simulated: Code resent successfully!');
+    }
   };
 
-  // Submit Step 1: Check Email & Send OTP
-  const handleSubmitEmail = async (e: React.FormEvent) => {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // STEP 1: SUBMIT EMAIL FOR RESET REQUEST
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
-      toast.error('Please enter your email address');
+      setEmailError('Please enter your email address');
+      return;
+    }
+    if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email address');
       return;
     }
 
     try {
-      // First validation: check if email exists in DB
-      const { data: existData } = await checkEmailExists({ variables: { email } });
-      const emailExists = existData?.checkEmailExists?.exists;
-
-      if (emailExists === false) {
-        toast.error('This email is not registered in our systems.');
-        return;
-      }
-
-      // If exists or fallback bypass, request password reset OTP
-      const { data: resetData } = await requestReset({ variables: { email } });
-      if (resetData?.requestPasswordReset?.success) {
-        toast.success(resetData.requestPasswordReset.message || 'OTP Sent to Email');
-        setOtpTimer(120);
-        handleStepTransition(2);
+      // Step 1 check if email exists. The server responds with success if the account is present.
+      const { data } = await requestReset({ variables: { email } });
+      
+      if (data?.requestPasswordReset?.success) {
+        toast.success(data.requestPasswordReset.message || 'OTP code sent successfully!');
+        
+        // Generate and log mock code for ease of local validation
+        const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setMockOtpCode(generatedCode);
+        
+        // Advance to step 2 (OTP code input verification)
+        setStep(2);
       } else {
-        toast.error(resetData?.requestPasswordReset?.message || 'Could not send OTP. Try again.');
+        setEmailError(data?.requestPasswordReset?.message || 'Email does not exist in our systems');
+        toast.error('Email verification check failed');
       }
-    } catch {
-      // offline demo mock fallback
-      if (email.includes('@')) {
-        toast.success('OTP sent to ' + email + ' (Offline Mock)');
-        setOtpTimer(120);
-        handleStepTransition(2);
-      } else {
-        toast.error('Invalid email address format.');
-      }
+    } catch (err: any) {
+      // In case backend is offline, we fall back to a mock demo flow for presentation
+      toast.error('Backend server offline. Simulating recovery pipeline...');
+      const demoCode = '482937';
+      setMockOtpCode(demoCode);
+      setStep(2);
     }
   };
 
-  // Submit Step 2: Verify OTP
-  const handleSubmitOtp = async (e: React.FormEvent) => {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // STEP 2: VERIFY CODE
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length < 4) {
-      toast.error('Please enter the full verification OTP code');
+    setOtpError('');
+
+    if (otp.length !== 6 || isNaN(Number(otp))) {
+      setOtpError('Please enter a valid 6-digit verification code');
       return;
     }
 
     try {
-      const { data } = await verifyOtpMutation({ variables: { email, otp } });
+      const { data } = await verifyOtp({ variables: { email, otp } });
       if (data?.verifyOtp?.success) {
-        toast.success('OTP verified successfully!');
-        setResetToken(data.verifyOtp.resetToken || 'mock-reset-token');
-        handleStepTransition(3);
+        setResetToken(data.verifyOtp.resetToken);
+        toast.success('Security OTP code verified successfully!');
+        setStep(3);
       } else {
-        toast.error(data?.verifyOtp?.message || 'Invalid or expired OTP code');
+        setOtpError(data?.verifyOtp?.message || 'Invalid or expired OTP code');
       }
     } catch {
-      // Offline fallback bypass
-      if (otp === '123456' || otp === '1234') {
-        toast.success('OTP verified successfully! (Offline Mock)');
-        setResetToken('mock-reset-token');
-        handleStepTransition(3);
+      // Fallback verification matching the simulated code on the right panel
+      if (otp === mockOtpCode) {
+        setResetToken('mock-secret-jwt-token-4712893');
+        toast.success('Simulated: Code verified successfully!');
+        setStep(3);
       } else {
-        toast.error('Invalid OTP. Use mock code: 123456');
+        setOtpError('Invalid OTP code code. Please check the simulated inbox.');
       }
     }
   };
 
-  // Submit Step 3: Input New Password
-  const handleSubmitPassword = async (e: React.FormEvent) => {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // STEP 3: RESET PASSWORD
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword || !confirmPassword) {
-      toast.error('Please input your password fields');
-      return;
-    }
+    setPwdError('');
+
     if (newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters long');
+      setPwdError('Password must be at least 8 characters long');
       return;
     }
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+    if (newPassword !== confirmNewPassword) {
+      setPwdError('Passwords do not match');
       return;
     }
 
     try {
-      const { data } = await resetPasswordMutation({
-        variables: { resetToken, newPassword }
+      const { data } = await resetPassword({
+        variables: {
+          resetToken: resetToken,
+          newPassword: newPassword
+        }
       });
+
       if (data?.resetPassword?.success) {
-        toast.success(data.resetPassword.message || 'Password changed successfully!');
-        handleStepTransition(4);
+        toast.success('Password updated successfully! Redirecting...');
+        setTimeout(() => {
+          navigate('/auth?mode=login');
+        }, 1500);
       } else {
-        toast.error(data?.resetPassword?.message || 'Failed to reset password. Try requesting a new OTP.');
+        setPwdError(data?.resetPassword?.message || 'Reset expired. Re-authenticate.');
       }
     } catch {
-      // Offline fallback success
-      toast.success('Password changed successfully! (Offline Mock)');
-      handleStepTransition(4);
+      toast.success('Simulated: Password updated successfully!');
+      setTimeout(() => {
+        navigate('/auth?mode=login');
+      }, 1500);
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  // Analyze strength of the password input
+  const getPasswordStrength = (pwd: string) => {
+    if (!pwd) return { score: 0, label: 'Weak', color: 'bg-white/10' };
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+
+    if (score <= 1) return { score, label: 'Weak', color: 'bg-red-500' };
+    if (score === 2) return { score, label: 'Fair', color: 'bg-yellow-500' };
+    if (score === 3) return { score, label: 'Good', color: 'bg-orange-500' };
+    return { score, label: 'Strong', color: 'bg-emerald-500' };
   };
+
+  const strength = getPasswordStrength(newPassword);
 
   return (
-    <div
-      ref={containerRef}
-      className="min-h-screen relative w-full flex items-center justify-center py-12 px-4 select-none overflow-hidden"
-      style={{ background: 'var(--gradient-hero)' }}
-    >
-      {/* Background aesthetics */}
-      <div className="absolute inset-0 bg-grid opacity-10 pointer-events-none" />
-      <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-orange-600/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/3 right-1/3 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden"
+      style={{ backgroundColor: 'var(--color-bg)' }}>
+      
+      {/* Background Graphic Nodes */}
+      <div className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full opacity-15 blur-[120px] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, var(--color-primary-light) 0%, transparent 70%)' }} />
+      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full opacity-15 blur-[120px] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #E8580A 0%, transparent 70%)' }} />
 
-      {/* Card wrapper */}
-      <div
-        ref={cardRef}
-        className="w-full max-w-md glass border border-white/10 rounded-[2.5rem] shadow-2xl p-6 md:p-8 relative z-10"
-      >
-        {/* Back navigation button */}
-        {step < 4 && (
-          <button
-            onClick={() => {
-              if (step === 1) navigate('/auth');
-              else handleStepTransition((step - 1) as 1 | 2 | 3);
-            }}
-            className="inline-flex items-center gap-1 text-white/50 hover:text-white text-xs font-semibold uppercase tracking-wider mb-6 group transition-all"
-          >
-            <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-            <span>{step === 1 ? 'Back to Login' : 'Back'}</span>
-          </button>
-        )}
-
-        {/* Step headers */}
-        {step === 1 && (
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-center mx-auto mb-3">
-              <Mail size={22} className="text-orange-500" />
-            </div>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">{t('auth.forgotTitle')}</h2>
-            <p className="text-white/50 text-xs mt-1.5 leading-relaxed">{t('auth.forgotSubtitle')}</p>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-center mx-auto mb-3">
-              <KeyRound size={22} className="text-orange-500 animate-bounce" />
-            </div>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">{t('auth.otpTitle')}</h2>
-            <p className="text-white/50 text-xs mt-1.5 leading-relaxed">{t('auth.otpSubtitle')}</p>
-            <span className="inline-block mt-2 text-xs font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full">
-              {email}
-            </span>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-center mx-auto mb-3">
-              <Lock size={22} className="text-orange-500" />
-            </div>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">{t('auth.newPassword')}</h2>
-            <p className="text-white/50 text-xs mt-1.5 leading-relaxed">Choose a strong, unique password for your Tarxemo account.</p>
-          </div>
-        )}
-
-        {/* Form elements */}
-        {step === 1 && (
-          <form onSubmit={handleSubmitEmail} className="space-y-4">
-            <div>
-              <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5 pl-1">
-                {t('auth.email')}
-              </label>
-              <div className="relative">
-                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="you@example.com"
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-orange-500/60 focus:bg-white/8 transition-all"
-                />
-              </div>
+      <div className="container mx-auto max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+        
+        {/* Left column (Form interface) */}
+        <div ref={leftPaneRef} className="lg:col-span-6 flex justify-center">
+          <div className="w-full max-w-md glass border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+            
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <Link to="/auth?mode=login" className="text-white/60 hover:text-white flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
+                <ArrowLeft size={14} />
+                <span>{t('auth.backToLogin')}</span>
+              </Link>
+              <span className="badge badge-primary text-[8px]">Step {step} of 3</span>
             </div>
 
-            <button
-              type="submit"
-              disabled={checkingEmail || requestingReset}
-              className="w-full btn btn-primary py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider disabled:opacity-50 mt-4"
-            >
-              {(checkingEmail || requestingReset) ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <>
-                  <span>{t('auth.sendOtp')}</span>
-                  <Send size={13} />
-                </>
-              )}
-            </button>
-          </form>
-        )}
+            {/* ─── STEP 1: Enter Email ─── */}
+            {step === 1 && (
+              <form onSubmit={handleEmailSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold text-white">{t('auth.forgotTitle')}</h2>
+                  <p className="text-xs text-white/50">{t('auth.forgotSubtitle')}</p>
+                </div>
 
-        {step === 2 && (
-          <form onSubmit={handleSubmitOtp} className="space-y-4">
-            <div>
-              <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5 pl-1">
-                One-Time OTP Code
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  required
-                  placeholder="123456"
-                  className="w-full tracking-[0.5em] text-center font-bold text-base py-3 rounded-xl bg-white/5 border border-white/10 text-white outline-none focus:border-orange-500/60 focus:bg-white/8 transition-all"
-                />
-              </div>
-              <p className="text-[10px] text-white/40 text-center mt-2">
-                Use mock code <strong className="text-orange-400">123456</strong> if testing local fallback
-              </p>
-            </div>
+                <div>
+                  <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">{t('auth.email')}</label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError('');
+                      }}
+                      placeholder="driver@tarxemo.com"
+                      className={`input-field text-xs pl-10 ${emailError ? 'error' : ''}`}
+                      required
+                    />
+                  </div>
+                  {emailError && <span className="text-[10px] text-red-400 mt-1 block font-bold">{emailError}</span>}
+                </div>
 
-            <div className="flex items-center justify-between text-xs pt-2">
-              <span className="text-white/40">
-                {t('auth.otpExpiry')}:{' '}
-                <strong className="text-white/70 font-semibold">{formatTime(otpTimer)}</strong>
-              </span>
-              <button
-                type="button"
-                disabled={otpTimer > 0}
-                onClick={() => {
-                  setOtpTimer(120);
-                  toast.success('A new OTP has been requested.');
-                }}
-                className="text-orange-500 font-bold hover:underline disabled:opacity-30"
-              >
-                {t('auth.resendOtp')}
-              </button>
-            </div>
-
-            <button
-              type="submit"
-              disabled={verifyingOtp}
-              className="w-full btn btn-primary py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider disabled:opacity-50 mt-4"
-            >
-              {verifyingOtp ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <>
-                  <span>{t('auth.verifyOtp')}</span>
-                  <Check size={14} />
-                </>
-              )}
-            </button>
-          </form>
-        )}
-
-        {step === 3 && (
-          <form onSubmit={handleSubmitPassword} className="space-y-4">
-            <div>
-              <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5 pl-1">
-                New Password
-              </label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-orange-500/60 focus:bg-white/8 transition-all"
-                />
                 <button
-                  type="button"
-                  onClick={() => setShowPassword((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+                  type="submit"
+                  disabled={requestLoading}
+                  className="w-full btn btn-primary py-3.5 rounded-xl text-xs uppercase font-extrabold tracking-wider flex items-center justify-center gap-2 disabled:opacity-75"
                 >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  {requestLoading ? 'Checking...' : (
+                    <>
+                      <span>{t('auth.sendOtp')}</span>
+                      <Send size={14} />
+                    </>
+                  )}
                 </button>
-              </div>
-            </div>
+              </form>
+            )}
 
-            <div>
-              <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5 pl-1">
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <KeyRound size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-orange-500/60 focus:bg-white/8 transition-all"
-                />
+            {/* ─── STEP 2: Enter OTP ─── */}
+            {step === 2 && (
+              <form onSubmit={handleOtpSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold text-white">{t('auth.otpTitle')}</h2>
+                  <p className="text-xs text-white/50">{t('auth.otpSubtitle')}</p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">6-Digit Security Token</label>
+                  <div className="relative">
+                    <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => {
+                        setOtp(e.target.value);
+                        if (otpError) setOtpError('');
+                      }}
+                      placeholder="Enter 6-digit OTP"
+                      className={`input-field text-xs pl-10 font-bold tracking-widest ${otpError ? 'error' : ''}`}
+                      required
+                    />
+                  </div>
+                  {otpError && <span className="text-[10px] text-red-400 mt-1 block font-bold">{otpError}</span>}
+                </div>
+
+                {/* Resend / Expiry Timer */}
+                <div className="flex justify-between items-center text-[10px] font-bold uppercase p-3 bg-white/5 rounded-xl border border-white/5">
+                  <span className="text-white/40">{t('auth.otpExpiry')}</span>
+                  {countdown > 0 ? (
+                    <span className="text-orange-500 font-extrabold">
+                      {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      className="text-orange-500 font-extrabold hover:underline"
+                    >
+                      {t('auth.resendOtp')}
+                    </button>
+                  )}
+                </div>
+
                 <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+                  type="submit"
+                  disabled={verifyLoading}
+                  className="w-full btn btn-primary py-3.5 rounded-xl text-xs uppercase font-extrabold tracking-wider flex items-center justify-center gap-2 disabled:opacity-75"
                 >
-                  {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  {verifyLoading ? 'Verifying OTP...' : (
+                    <>
+                      <span>{t('auth.verifyOtp')}</span>
+                      <ArrowRight size={14} />
+                    </>
+                  )}
                 </button>
-              </div>
-            </div>
+              </form>
+            )}
 
-            <button
-              type="submit"
-              disabled={resettingPassword}
-              className="w-full btn btn-primary py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider disabled:opacity-50 mt-4"
-            >
-              {resettingPassword ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <>
-                  <span>{t('auth.resetPassword')}</span>
-                  <Check size={14} />
-                </>
-              )}
-            </button>
-          </form>
-        )}
+            {/* ─── STEP 3: Set New Password ─── */}
+            {step === 3 && (
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold text-white">{t('auth.newPassword')}</h2>
+                  <p className="text-xs text-white/50">Establish a secure and unique system password.</p>
+                </div>
 
-        {/* Step 4: Success card screen */}
-        {step === 4 && (
-          <div className="text-center py-6 space-y-6">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto animate-pulse">
-              <Check size={32} className="text-emerald-500" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-extrabold text-white tracking-tight">Password Reset Complete!</h2>
-              <p className="text-white/50 text-xs mt-2 leading-relaxed">
-                Your credentials have been securely updated. You can now access your Tarxemo account using your new credentials.
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('/auth')}
-              className="w-full btn btn-primary py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider mt-4"
-            >
-              <span>Go to Login page</span>
-              <ArrowRight size={14} />
-            </button>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">{t('auth.newPassword')}</label>
+                    <div className="relative">
+                      <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => {
+                          setNewPassword(e.target.value);
+                          if (pwdError) setPwdError('');
+                        }}
+                        placeholder="••••••••"
+                        className={`input-field text-xs pl-9 pr-9 ${pwdError ? 'error' : ''}`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                      >
+                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1.5">Confirm New Password</label>
+                    <div className="relative">
+                      <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmNewPassword}
+                        onChange={(e) => {
+                          setConfirmNewPassword(e.target.value);
+                          if (pwdError) setPwdError('');
+                        }}
+                        placeholder="••••••••"
+                        className={`input-field text-xs pl-9 pr-9 ${pwdError ? 'error' : ''}`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                      >
+                        {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Password Strength Meter */}
+                {newPassword && (
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-2">
+                    <div className="flex justify-between items-center text-[9px] font-bold text-white/50 uppercase">
+                      <span>Password Strength</span>
+                      <span className={strength.score === 4 ? 'text-emerald-400' : 'text-orange-400'}>{strength.label}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 h-1">
+                      {[...Array(4)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            i < strength.score ? strength.color : 'bg-white/10'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {pwdError && <span className="text-[10px] text-red-400 mt-1 block font-bold">{pwdError}</span>}
+
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="w-full btn btn-primary py-3.5 rounded-xl text-xs uppercase font-extrabold tracking-wider disabled:opacity-75"
+                >
+                  {resetLoading ? 'Resetting Password...' : t('auth.resetPassword')}
+                </button>
+              </form>
+            )}
+
           </div>
-        )}
+        </div>
+
+        {/* Right column: Simulated Inbox displaying gorgeous colorful HTML email */}
+        <div ref={emailSandboxRef} className="lg:col-span-6 flex justify-center">
+          <div className="w-full max-w-md glass border border-white/10 rounded-3xl p-4 md:p-6 shadow-2xl relative">
+            <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-4 text-xs font-bold text-white/40">
+              <MailOpen size={14} className="text-orange-500" />
+              <span>Simulated Inbox Sandbox (Live Verification)</span>
+            </div>
+
+            {step === 1 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 text-white/30">
+                  <Mail size={22} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-white">No incoming dispatch alerts</h4>
+                  <p className="text-[10px] text-white/40 max-w-xs">Enter your email and click Send OTP to dispatch verification codes.</p>
+                </div>
+              </div>
+            ) : (
+              /* Beautiful colorful HTML email mockup */
+              <div className="rounded-2xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl text-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {/* Email Header */}
+                <div className="bg-slate-950 p-4 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                      style={{ background: 'var(--gradient-primary)' }}>
+                      <Flame size={12} className="text-white" />
+                    </div>
+                    <span className="text-[10px] font-extrabold text-white tracking-widest uppercase">Tarxemo Dispatch</span>
+                  </div>
+                  <span className="text-[9px] text-white/40">Just now</span>
+                </div>
+
+                {/* Email Metadata */}
+                <div className="p-3 bg-slate-900/60 border-b border-white/5 text-[9px] text-white/60 space-y-0.5">
+                  <p><strong>From:</strong> security-alerts@tarxemo.com</p>
+                  <p><strong>To:</strong> {email || 'user@tarxemo.com'}</p>
+                  <p><strong>Subject:</strong> Action Required: Secure Account Recovery OTP</p>
+                </div>
+
+                {/* Email Body */}
+                <div className="p-6 bg-white space-y-5 text-xs text-slate-700 leading-relaxed font-sans">
+                  <h3 className="text-sm font-black text-slate-900 border-l-4 border-orange-500 pl-2">
+                    Account Verification Code
+                  </h3>
+                  
+                  <p>
+                    Hello, <br />
+                    We received a request to recover your Tarxemo Logistics platform password. Enter the security code below to establish a new password credential:
+                  </p>
+
+                  {/* Dynamic OTP block */}
+                  <div className="my-6 p-4 rounded-xl text-center bg-orange-50 border border-orange-100 space-y-1.5">
+                    <span className="text-[10px] text-orange-600 font-bold uppercase tracking-widest block">Security OTP Code</span>
+                    <span className="text-2xl font-black text-orange-500 tracking-[0.4em] block pl-[0.4em]">
+                      {mockOtpCode}
+                    </span>
+                    <span className="text-[9px] text-slate-400 block">Valid for 2 minutes. Do not share this token.</span>
+                  </div>
+
+                  <p>
+                    If you did not initiate this recovery process, please notify security-audit@tarxemo.com immediately or check with your tenant admin.
+                  </p>
+
+                  <div className="pt-4 border-t border-slate-100 text-[9px] text-slate-400">
+                    <p>© 2026 Tarxemo Logistics Inc. Nairobi-Dar es Salaam highway corridors.</p>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+          </div>
+        </div>
+
       </div>
     </div>
   );

@@ -92,11 +92,10 @@ const Header: React.FC = () => {
   return (
     <header
       ref={headerRef}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
           ? 'glass border-b border-white/10 shadow-lg'
           : 'bg-transparent'
-      }`}
+        }`}
     >
       <div className="container-wide flex items-center justify-between h-16 md:h-20">
         {/* ─── Logo ─────────────────────────────────────────────── */}
@@ -125,11 +124,10 @@ const Header: React.FC = () => {
             <Link
               key={link.path}
               to={link.path}
-              className={`nav-item px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                isActive(link.path)
+              className={`nav-item px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${isActive(link.path)
                   ? 'text-white'
                   : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
+                }`}
               style={isActive(link.path) ? { background: 'var(--gradient-primary)' } : {}}
             >
               {t(link.key)}
@@ -173,11 +171,10 @@ const Header: React.FC = () => {
                   <button
                     key={lang.code}
                     onClick={() => handleLangChange(lang.code)}
-                    className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2.5 transition-all ${
-                      language === lang.code
+                    className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2.5 transition-all ${language === lang.code
                         ? 'text-white font-semibold'
                         : 'text-white/70 hover:text-white hover:bg-white/10'
-                    }`}
+                      }`}
                     style={language === lang.code ? { background: 'rgba(232,88,10,0.2)' } : {}}
                   >
                     <span className="text-lg">{lang.flag}</span>
@@ -291,11 +288,10 @@ const Header: React.FC = () => {
                 key={link.path}
                 to={link.path}
                 onClick={() => setMobileOpen(false)}
-                className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                  isActive(link.path)
+                className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(link.path)
                     ? 'text-white'
                     : 'text-white/70 hover:text-white hover:bg-white/10'
-                }`}
+                  }`}
                 style={isActive(link.path) ? { background: 'rgba(232,88,10,0.2)', color: 'var(--color-primary)' } : {}}
               >
                 {t(link.key)}

@@ -9,13 +9,14 @@ const ForgotPassword = lazy(() => import('./pages/public/ForgotPasswordPage'));
 const CompaniesPage  = lazy(() => import('./pages/public/CompaniesPage'));
 const JobsPage       = lazy(() => import('./pages/public/JobsPage'));
 const AboutPage      = lazy(() => import('./pages/public/AboutPage'));
+const ContactPage    = lazy(() => import('./pages/public/ContactPage'));
 
 const CombinedNavBar = lazy(() => import('./components/layout/CombinedNavBar'));
 
 const Spinner = () => (
   <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--color-bg)' }}>
     <div className="flex flex-col items-center gap-4">
-      <div className="w-12 h-12 rounded-full border-3 border-transparent border-t-orange-500 animate-spin"
+      <div className="w-16 h-16 rounded-full border-3 border-transparent border-t-orange-500 animate-spin"
         style={{ borderTopColor: 'var(--color-primary)', borderWidth: '3px' }} />
       <span className="text-sm" style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)' }}>
         Loading Tarxemo...
@@ -40,6 +41,7 @@ const App: React.FC = () => {
           <Route path="/companies" element={<CompaniesPage />} />
           <Route path="/jobs"      element={<JobsPage />} />
           <Route path="/about"     element={<AboutPage />} />
+          <Route path="/contact"   element={<ContactPage />} />
         </Route>
 
         {/* ─ Auth ─ */}

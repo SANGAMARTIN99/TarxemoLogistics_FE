@@ -142,7 +142,7 @@ const Footer: React.FC = () => {
         style={{ background: 'radial-gradient(circle, #FF7A2F 0%, transparent 70%)' }} />
 
       {/* ─── Main Footer Content ─────────────────────────────── */}
-      <div className="container-wide pt-16 pb-8 relative z-10">
+      <div className="container-wide pt-20 pb-8 relative z-10">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
 
           {/* Brand Column */}

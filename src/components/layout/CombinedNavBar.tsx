@@ -1,416 +1,687 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, Link, Routes, Route, Navigate } from 'react-router-dom';
+import { useQuery, useMutation } from '@apollo/client';
+import { gsap } from 'gsap';
 import {
-  Truck, Building2, Users, LogOut, Bell,
-  Sun, Moon, Menu, X, LayoutDashboard, Settings,
-  FileText, DollarSign, Briefcase, Layers, ClipboardList, ShieldCheck, Map
+  Truck, Building2, Briefcase, Layers, LayoutDashboard,
+  Bell, Sun, Moon, ClipboardList, ShieldCheck, Clock,
+  RefreshCw, Send, ArrowRight, Settings, FileText, X, Menu, Map
 } from 'lucide-react';
+
+import { GET_DRIVER_DASHBOARD, GET_CUSTOMER_DASHBOARD } from '../../api/queries';
+import { LOGOUT_USER } from '../../api/mutations';
 import { useAppStore } from '../../store/useAppStore';
 import type { UserRole } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
 
-// ─── Dummy / Mock Inner Dashboard Components ───
-// To support full functionality within a single file of 500+ lines, we declare detailed subcomponents.
+// ─────────────────────────────────────────────────────────────────────────────
+// ROLE-BASED DASHBOARD VIEWS ( horizontal grids, full-width layouts )
+// ─────────────────────────────────────────────────────────────────────────────
 
+// 1. DRIVER DASHBOARD VIEW
 const DriverDashboardView: React.FC = () => {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-white">Driver Dispatch Board</h2>
-          <p className="text-xs text-white/50">Manage your active transit deliveries and cargo schedules.</p>
-        </div>
-        <span className="badge badge-success px-3 py-1 flex items-center gap-1">
-          <ShieldCheck size={12} /> Duty Active
-        </span>
-      </div>
+  const { data, loading, error } = useQuery(GET_DRIVER_DASHBOARD, {
+    fetchPolicy: 'cache-and-network'
+  });
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  const [transitLog, setTransitLog] = useState({
+    corridorName: 'Mombasa - Kampala Highway',
+    locationCheckpoint: 'Malaba Border Station',
+    notes: 'Standard clearances verified. Weather clear. Moving towards Kampala Central Depot.'
+  });
+
+  const handleTransitLogSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success('Transit log report dispatched successfully!');
+    setTransitLog({ ...transitLog, notes: '' });
+  };
+
+  if (loading) return <div className="h-64 rounded-2xl glass animate-pulse" />;
+  if (error) return <div className="p-8 text-center glass border border-white/5 rounded-2xl text-xs text-white/50">Unable to query driver logs.</div>;
+
+  const dashboardData = data?.driverDashboard || {
+    availableJobs: 14,
+    completedTrips: 48,
+    rating: 4.95,
+    earnings: { thisMonth: 125000, currency: 'KES' },
+    upcomingTrips: [
+      { id: '1', title: 'Container Freight dispatch', pickup: 'Mombasa Port', delivery: 'Kampala Depot', date: '2026-08-12', status: 'ASSIGNED' }
+    ]
+  };
+
+  return (
+    <div className="space-y-8 w-full max-w-full">
+      {/* Upper overview widgets */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Completed Deliveries', val: '48 Trips', color: 'border-l-emerald-500' },
-          { label: 'Pending Dispatches', val: '2 Tasks', color: 'border-l-orange-500' },
-          { label: 'Driver Rating score', val: '4.95 / 5', color: 'border-l-yellow-500' }
+          { label: 'Assigned Driver Rating', val: `${dashboardData.rating} / 5.0`, color: 'border-l-yellow-500' },
+          { label: 'Completed Cargo Trips', val: `${dashboardData.completedTrips} Trips`, color: 'border-l-emerald-500' },
+          { label: 'Open Corridor dispatches', val: `${dashboardData.availableJobs} Jobs`, color: 'border-l-orange-500' },
+          { label: 'Monthly Earnings Estimate', val: `${dashboardData.earnings.currency} ${dashboardData.earnings.thisMonth.toLocaleString()}`, color: 'border-l-indigo-500' }
         ].map((c, i) => (
-          <div key={i} className={`glass p-5 rounded-2xl border-l-4 ${c.color} border-y-0 border-r-0`}>
-            <p className="text-[10px] text-white/40 uppercase font-bold">{c.label}</p>
-            <p className="text-xl font-extrabold text-white mt-1">{c.val}</p>
+          <div key={i} className={`glass p-6 rounded-2xl border-l-4 ${c.color} border-y-0 border-r-0 shadow-md`}>
+            <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</p>
+            <p className="text-xl font-extrabold text-white mt-2">{c.val}</p>
           </div>
         ))}
       </div>
 
-      <div className="glass border border-white/5 p-5 rounded-2xl">
-        <h3 className="font-bold text-sm text-white mb-4">Current Assigned Trip Corridor</h3>
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 glass-dark rounded-xl">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-              <span className="text-xs font-bold text-white">Mombasa Cargo Port Terminal (Pickup)</span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left column: Upcoming Trips */}
+        <div className="lg:col-span-7 glass border border-white/5 p-6 rounded-2xl space-y-6">
+          <div className="flex justify-between items-center border-b border-white/5 pb-4">
+            <div>
+              <h3 className="font-bold text-sm text-white uppercase tracking-wider">Active Transit Corridor</h3>
+              <p className="text-[10px] text-white/40">Assigned corridor routes and milestones.</p>
             </div>
-            <div className="w-0.5 h-6 bg-white/10 ml-1.25" />
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span className="text-xs font-bold text-white">Kampala Central Depot (Delivery)</span>
+            <span className="badge badge-success text-[8px] px-2 py-0.5 flex items-center gap-1">
+              <ShieldCheck size={10} /> Active Duty
+            </span>
+          </div>
+
+          {dashboardData.upcomingTrips.map((trip: any) => (
+            <div key={trip.id} className="p-5 glass-dark rounded-xl border border-white/5 space-y-4">
+              <div className="flex justify-between items-start flex-wrap gap-2">
+                <span className="text-xs font-bold text-white uppercase">{trip.title}</span>
+                <span className="badge badge-primary text-[8px] px-2 py-0.5">{trip.status}</span>
+              </div>
+              <div className="space-y-2.5 text-xs text-white/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-orange-500" />
+                  <span>Pickup: <strong>{trip.pickup}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>Delivery: <strong>{trip.delivery}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock size={12} className="text-orange-500" />
+                  <span>Departure Date: <strong>{trip.date}</strong></span>
+                </div>
+              </div>
             </div>
+          ))}
+        </div>
+
+        {/* Right column: Submit Transit logs */}
+        <div className="lg:col-span-5 glass border border-white/5 p-6 rounded-2xl space-y-6">
+          <div className="border-b border-white/5 pb-4">
+            <h3 className="font-bold text-sm text-white uppercase tracking-wider">Report Transit Logs</h3>
+            <p className="text-[10px] text-white/40">Send location manifests directly to tenant admins.</p>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] text-white/40 font-bold uppercase">Estimated Duration</p>
-            <p className="text-sm font-bold text-white mt-0.5">18h 45m remaining</p>
-            <span className="badge badge-primary text-[8px] mt-1.5 px-2 py-0.5">ON SCHEDULE</span>
-          </div>
+
+          <form onSubmit={handleTransitLogSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Active Corridor</label>
+              <input
+                type="text"
+                value={transitLog.corridorName}
+                readOnly
+                className="input-field text-xs bg-white/5 border-white/5 text-white/60 select-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Current Checkpoint</label>
+              <input
+                type="text"
+                value={transitLog.locationCheckpoint}
+                onChange={(e) => setTransitLog({ ...transitLog, locationCheckpoint: e.target.value })}
+                className="input-field text-xs"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Operational Manifest Notes</label>
+              <textarea
+                value={transitLog.notes}
+                onChange={(e) => setTransitLog({ ...transitLog, notes: e.target.value })}
+                className="input-field text-xs h-20 resize-none"
+                placeholder="Enter custom delay audits, fuel details, border remarks..."
+                required
+              />
+            </div>
+            <button type="submit" className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5">
+              <span>Send Log Manifest</span>
+              <Send size={12} />
+            </button>
+          </form>
         </div>
       </div>
     </div>
   );
 };
 
+// 2. CUSTOMER DASHBOARD VIEW
 const CustomerDashboardView: React.FC = () => {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-white">Customer Cargo Console</h2>
-        <p className="text-xs text-white/50">Track your ongoing shipments, request quotes and review invoices.</p>
-      </div>
+  const { data, loading, error } = useQuery(GET_CUSTOMER_DASHBOARD, {
+    fetchPolicy: 'cache-and-network'
+  });
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+  const [quoteRequest, setQuoteRequest] = useState({
+    pickup: '',
+    delivery: '',
+    weight: '',
+    description: ''
+  });
+
+  const handleRequestQuote = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success('Cargo quotation query dispatched to regional transport offices!');
+    setQuoteRequest({ pickup: '', delivery: '', weight: '', description: '' });
+  };
+
+  if (loading) return <div className="h-64 rounded-2xl glass animate-pulse" />;
+  if (error) return <div className="p-8 text-center glass border border-white/5 rounded-2xl text-xs text-white/50">Unable to query customer console.</div>;
+
+  const dashboardData = data?.customerDashboard || {
+    activeShipments: 3,
+    totalShipments: 12,
+    pendingQuotes: 1,
+    recentShipments: [
+      { id: '1', trackingNumber: 'TRX-782635', status: 'IN_TRANSIT', pickup: 'Mombasa', delivery: 'Kigali', estimatedDelivery: '2026-08-15' },
+      { id: '2', trackingNumber: 'TRX-192837', status: 'DELIVERED', pickup: 'Dar es Salaam', delivery: 'Nairobi', estimatedDelivery: '2026-08-02' }
+    ]
+  };
+
+  return (
+    <div className="space-y-8 w-full max-w-full">
+      {/* Top metrics grids */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         {[
-          { label: 'Active Shipments', val: '3 Cargoes' },
-          { label: 'Quotes Pending', val: '1 Quote' },
-          { label: 'Total Invoiced', val: 'KES 450,000' },
-          { label: 'Delivered Packages', val: '12 Items' }
+          { label: 'Active Shipments In Corridor', val: `${dashboardData.activeShipments} Cargoes` },
+          { label: 'Pending Corridor Quotations', val: `${dashboardData.pendingQuotes} Request` },
+          { label: 'Delivered Freight Volumes', val: `${dashboardData.totalShipments} Containers` }
         ].map((c, i) => (
-          <div key={i} className="glass p-5 rounded-2xl border border-white/5">
-            <p className="text-[10px] text-white/40 uppercase font-bold">{c.label}</p>
-            <p className="text-lg font-black text-white mt-1">{c.val}</p>
+          <div key={i} className="glass p-6 rounded-2xl border border-white/5 shadow-md">
+            <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</p>
+            <p className="text-xl font-extrabold text-white mt-2">{c.val}</p>
           </div>
         ))}
       </div>
 
-      <div className="glass border border-white/5 p-5 rounded-2xl">
-        <h3 className="font-bold text-sm text-white mb-3">Live Cargo Tracking status</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/10 text-white/40">
-                <th className="py-2.5">Tracking ID</th>
-                <th className="py-2.5">Destination Route</th>
-                <th className="py-2.5">Carrier Operator</th>
-                <th className="py-2.5">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5 text-white/80">
-              <tr>
-                <td className="py-3 font-semibold text-orange-400">TRX-782635</td>
-                <td className="py-3">Dar es Salaam to Kigali</td>
-                <td className="py-3">Bolloré Logistics</td>
-                <td className="py-3"><span className="badge badge-success text-[8px] px-2 py-0.5">IN TRANSIT</span></td>
-              </tr>
-              <tr>
-                <td className="py-3 font-semibold text-orange-400">TRX-192837</td>
-                <td className="py-3">Mombasa to Nairobi</td>
-                <td className="py-3">Kenfreight Ltd</td>
-                <td className="py-3"><span className="badge badge-primary text-[8px] px-2 py-0.5">DELIVERED</span></td>
-              </tr>
-            </tbody>
-          </table>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left column: Live shipments tracking */}
+        <div className="lg:col-span-7 glass border border-white/5 p-6 rounded-2xl space-y-6">
+          <div className="border-b border-white/5 pb-4">
+            <h3 className="font-bold text-sm text-white uppercase tracking-wider">Live Cargo Tracking Consoles</h3>
+            <p className="text-[10px] text-white/40 font-semibold">Real-time status updates from the Northern and Central Transit Corridors.</p>
+          </div>
+
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-xs text-left border-collapse min-w-[500px]">
+              <thead>
+                <tr className="border-b border-white/10 text-white/40 text-[9px] uppercase tracking-wider font-bold">
+                  <th className="py-3 px-2">Tracking ID</th>
+                  <th className="py-3 px-2">Corridor Route</th>
+                  <th className="py-3 px-2">Est Delivery</th>
+                  <th className="py-3 px-2">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-white/80">
+                {dashboardData.recentShipments.map((s: any) => (
+                  <tr key={s.id} className="hover:bg-white/5 transition-colors">
+                    <td className="py-4 px-2 font-bold text-orange-400">{s.trackingNumber}</td>
+                    <td className="py-4 px-2">{s.pickup} to {s.delivery}</td>
+                    <td className="py-4 px-2">{s.estimatedDelivery}</td>
+                    <td className="py-4 px-2">
+                      <span className={`badge text-[8px] px-2 py-0.5 font-bold ${
+                        s.status === 'DELIVERED' ? 'badge-success' : 'badge-primary'
+                      }`}>
+                        {s.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Right column: Quote dispatch form */}
+        <div className="lg:col-span-5 glass border border-white/5 p-6 rounded-2xl space-y-6">
+          <div className="border-b border-white/5 pb-4">
+            <h3 className="font-bold text-sm text-white uppercase tracking-wider">Request Freight Quotation</h3>
+            <p className="text-[10px] text-white/40">Request corridor quotes from verified shippers.</p>
+          </div>
+
+          <form onSubmit={handleRequestQuote} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Pickup Station</label>
+                <input
+                  type="text"
+                  value={quoteRequest.pickup}
+                  onChange={(e) => setQuoteRequest({ ...quoteRequest, pickup: e.target.value })}
+                  placeholder="e.g. Mombasa Port"
+                  className="input-field text-xs"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Delivery Depot</label>
+                <input
+                  type="text"
+                  value={quoteRequest.delivery}
+                  onChange={(e) => setQuoteRequest({ ...quoteRequest, delivery: e.target.value })}
+                  placeholder="e.g. Kigali Depot"
+                  className="input-field text-xs"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Cargo Weight Estimate (Tons)</label>
+              <input
+                type="number"
+                value={quoteRequest.weight}
+                onChange={(e) => setQuoteRequest({ ...quoteRequest, weight: e.target.value })}
+                placeholder="e.g. 24"
+                className="input-field text-xs"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Description of Cargo Goods</label>
+              <textarea
+                value={quoteRequest.description}
+                onChange={(e) => setQuoteRequest({ ...quoteRequest, description: e.target.value })}
+                className="input-field text-xs h-16 resize-none"
+                placeholder="e.g. Industrial machinery parts..."
+                required
+              />
+            </div>
+            <button type="submit" className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5">
+              <span>Send Quotation Query</span>
+              <ArrowRight size={12} />
+            </button>
+          </form>
         </div>
       </div>
     </div>
   );
 };
 
-const DefaultDashboardView: React.FC = () => {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-white">Management Console</h2>
-        <p className="text-xs text-white/50">Core fleet metrics, operational parameters, and staff performance indices.</p>
-      </div>
+// 3. DEFAULT ADMIN/MANAGEMENT VIEW ( Super Admin, Tenant Admin, Operations, Finance )
+const DefaultDashboardView: React.FC<{ role: UserRole }> = ({ role }) => {
+  const activeLogs = [
+    { checkpoint: 'Malaba border checkpoint', time: '14:28', operator: 'Kenfreight Ltd', code: 'TRX-782635' },
+    { checkpoint: 'Rusumo border station', time: '11:15', operator: 'Bolloré Logistics', code: 'TRX-982182' }
+  ];
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  const [pricingModel, setPricingModel] = useState({
+    baseRateKm: '1.25',
+    currency: 'USD',
+    corridorName: 'Northern Highway Corridor'
+  });
+
+  const handleUpdatepricing = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success('Global pricing parameters updated across tenant corridors!');
+  };
+
+  return (
+    <div className="space-y-8 w-full max-w-full">
+      {/* Top statistical grid row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {[
-          { label: 'Fleet Utility', val: '88% Capacity' },
-          { label: 'Monthly Revenue', val: 'TZS 12.4M' },
-          { label: 'Active Drivers Assigned', val: '14 Operators' }
+          { label: 'Platform Corridor Utility', val: '88% Capacity' },
+          { label: 'Active Drivers Logged In', val: '1,420 Drivers' },
+          { label: 'Active Registered Tenants', val: '24 Companies' }
         ].map((c, i) => (
-          <div key={i} className="glass p-5 rounded-2xl border border-white/5">
-            <p className="text-[10px] text-white/40 uppercase font-bold">{c.label}</p>
-            <p className="text-lg font-black text-white mt-1">{c.val}</p>
+          <div key={i} className="glass p-6 rounded-2xl border border-white/5 shadow-md">
+            <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</p>
+            <p className="text-xl font-extrabold text-white mt-2">{c.val}</p>
           </div>
         ))}
       </div>
 
-      <div className="glass border border-white/5 p-5 rounded-2xl">
-        <h3 className="font-bold text-sm text-white mb-3">Recent Corridor logs</h3>
-        <p className="text-white/60 text-xs leading-relaxed">
-          No deviations detected. Standard transit checklists verified at Namanga and Malaba border checkpoints. All dispatch schedules remain within nominal parameter tolerances.
-        </p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left column: Logs manifest review */}
+        <div className="lg:col-span-7 glass border border-white/5 p-6 rounded-2xl space-y-6">
+          <div className="border-b border-white/5 pb-4 flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-sm text-white uppercase tracking-wider">System Operations Manifest</h3>
+              <p className="text-[10px] text-white/40 font-semibold">Active dispatch logs and border updates monitored in real-time.</p>
+            </div>
+            <span className="badge badge-primary text-[8px] uppercase tracking-wider px-2 py-0.5">{role} View</span>
+          </div>
+
+          <div className="space-y-4">
+            {activeLogs.map((log, idx) => (
+              <div key={idx} className="p-4 glass-dark rounded-xl border border-white/5 flex justify-between items-center gap-4 flex-wrap">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span className="text-xs font-bold text-white">{log.checkpoint}</span>
+                  </div>
+                  <p className="text-[10px] text-white/40 font-medium">Operator: {log.operator} | Manifest ID: {log.code}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-white/50 block font-mono">{log.time}</span>
+                  <span className="badge badge-success text-[8px] px-1.5 py-0.5 mt-1">Nominal</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right column: Pricing parameters (Super Admin or Finance specific) */}
+        <div className="lg:col-span-5 glass border border-white/5 p-6 rounded-2xl space-y-6">
+          <div className="border-b border-white/5 pb-4">
+            <h3 className="font-bold text-sm text-white uppercase tracking-wider">Corridor Pricing Rates</h3>
+            <p className="text-[10px] text-white/40">Adjust base rates and currency values globally.</p>
+          </div>
+
+          <form onSubmit={handleUpdatepricing} className="space-y-4">
+            <div>
+              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Transit Corridor</label>
+              <input
+                type="text"
+                value={pricingModel.corridorName}
+                readOnly
+                className="input-field text-xs bg-white/5 border-white/5 text-white/60 select-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Base Rate / KM</label>
+                <input
+                  type="text"
+                  value={pricingModel.baseRateKm}
+                  onChange={(e) => setPricingModel({ ...pricingModel, baseRateKm: e.target.value })}
+                  className="input-field text-xs"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Billing Currency</label>
+                <input
+                  type="text"
+                  value={pricingModel.currency}
+                  onChange={(e) => setPricingModel({ ...pricingModel, currency: e.target.value })}
+                  className="input-field text-xs"
+                  required
+                />
+              </div>
+            </div>
+            <button type="submit" className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5">
+              <span>Adjust Pricing Manifest</span>
+              <RefreshCw size={12} />
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
 };
 
-// ─── CombinedNavBar Master Component ───
-
+// ─────────────────────────────────────────────────────────────────────────────
+// COMBINEDNAVBAR HEADER MASTER COMPONENT ( Horizontal top layouts, no left sidebar )
+// ─────────────────────────────────────────────────────────────────────────────
 const CombinedNavBar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // AppStore parameters
-  const { user, logout, theme, toggleTheme } = useAppStore();
-  const userRole = user?.role || 'DRIVER';
+  // AppStore context parameters
+  const { user, logout, theme, toggleTheme, language, setLanguage } = useAppStore();
+  const userRole: UserRole = user?.role || 'DRIVER';
 
-  // Toggle state
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Toggle/dropdown states
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Animation Refs
-  const sidebarRef = useRef<HTMLDivElement>(null);
-  const mainContentRef = useRef<HTMLDivElement>(null);
+  // Apollo queries and mutations
+  const [logoutUser] = useMutation(LOGOUT_USER);
 
-  // Trigger initial drawer size toggle animation
+  // GSAP Ref for page transitions
+  const contentContainerRef = useRef<HTMLDivElement>(null);
+
+  // On-load animation
   useEffect(() => {
-    if (window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
-  }, []);
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        contentContainerRef.current,
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }
+      );
+    });
+    return () => ctx.revert();
+  }, [location.pathname]);
 
-  // Handle Logout workflow
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // Mock logout support
+    }
     logout();
-    toast.success('Successfully logged out');
+    toast.success('Successfully logged out of secure corridor session!');
     navigate('/');
   };
 
-  // Define Navigation layout menus per role
-  const getSidebarMenuItems = (role: UserRole) => {
-    const commonItems = [
+  // Get Horizontal action links based on user role
+  const getRoleMenuItems = (role: UserRole) => {
+    const common = [
       { path: '/dashboard', label: 'Console Home', icon: LayoutDashboard },
-      { path: '/dashboard/settings', label: 'Account Settings', icon: Settings }
+      { path: '/dashboard/settings', label: 'Account Config', icon: Settings }
     ];
 
     switch (role) {
       case 'SUPER_ADMIN':
         return [
-          { path: '/dashboard', label: 'Platform Overview', icon: LayoutDashboard },
-          { path: '/dashboard/tenants', label: 'Manage Tenants', icon: Building2 },
-          { path: '/dashboard/system-logs', label: 'System Logs', icon: ClipboardList },
-          { path: '/dashboard/pricing-cards', label: 'Global Rates', icon: DollarSign },
+          { path: '/dashboard', label: 'Global Monitor', icon: LayoutDashboard },
+          { path: '/dashboard/tenants', label: 'Tenants Registry', icon: Building2 },
+          { path: '/dashboard/system-logs', label: 'Audit Manifests', icon: ClipboardList },
           { path: '/dashboard/settings', label: 'Settings', icon: Settings }
         ];
       case 'TENANT_ADMIN':
         return [
-          ...commonItems,
+          { path: '/dashboard', label: 'Tenant Console', icon: LayoutDashboard },
           { path: '/dashboard/fleet', label: 'Fleet Registry', icon: Truck },
-          { path: '/dashboard/drivers', label: 'Drivers Hub', icon: Users },
-          { path: '/dashboard/jobs', label: 'Dispatch Jobs', icon: Briefcase },
-          { path: '/dashboard/finance', label: 'Financial Audits', icon: DollarSign }
+          { path: '/dashboard/jobs', label: 'Load Dispatches', icon: Briefcase },
+          { path: '/dashboard/settings', label: 'Settings', icon: Settings }
         ];
       case 'OPERATIONS_MANAGER':
         return [
-          ...commonItems,
-          { path: '/dashboard/fleet', label: 'Vehicles status', icon: Truck },
-          { path: '/dashboard/jobs', label: 'Active Dispatches', icon: Briefcase },
-          { path: '/dashboard/tracking', label: 'Live GPS Feeds', icon: Map }
+          { path: '/dashboard', label: 'Ops Console', icon: LayoutDashboard },
+          { path: '/dashboard/tracking', label: 'Live GPS Corridor', icon: Map },
+          { path: '/dashboard/settings', label: 'Settings', icon: Settings }
         ];
       case 'FINANCE_OFFICER':
         return [
-          ...commonItems,
-          { path: '/dashboard/invoices', label: 'Invoices', icon: FileText },
-          { path: '/dashboard/payments', label: 'Reconciliation', icon: DollarSign }
+          { path: '/dashboard', label: 'Finance Console', icon: LayoutDashboard },
+          { path: '/dashboard/invoices', label: 'Billing Manifests', icon: FileText },
+          { path: '/dashboard/settings', label: 'Settings', icon: Settings }
         ];
       case 'DRIVER':
         return [
-          ...commonItems,
-          { path: '/dashboard/driver-trips', label: 'My Assigned Trips', icon: Truck },
-          { path: '/dashboard/driver-logs', label: 'Transit Logs', icon: FileText },
-          { path: '/dashboard/driver-earnings', label: 'Earnings Record', icon: DollarSign }
+          { path: '/dashboard', label: 'Driver Dashboard', icon: LayoutDashboard },
+          { path: '/dashboard/trips', label: 'My assigned loads', icon: Truck },
+          { path: '/dashboard/settings', label: 'Settings', icon: Settings }
         ];
       case 'CUSTOMER':
         return [
-          ...commonItems,
-          { path: '/dashboard/customer-cargo', label: 'My Cargoes', icon: Layers },
-          { path: '/dashboard/customer-quotes', label: 'Quotes Board', icon: FileText },
-          { path: '/dashboard/customer-billing', label: 'Payment Logs', icon: DollarSign }
+          { path: '/dashboard', label: 'Customer Console', icon: LayoutDashboard },
+          { path: '/dashboard/cargoes', label: 'Cargo Tracking', icon: Layers },
+          { path: '/dashboard/settings', label: 'Settings', icon: Settings }
         ];
       default:
-        return commonItems;
+        return common;
     }
   };
 
-  const menuItems = getSidebarMenuItems(userRole);
-  const activeItem = menuItems.find((item) => location.pathname === item.path) || menuItems[0];
+  const actionItems = getRoleMenuItems(userRole);
 
   const dummyNotifications = [
-    { id: 'n1', text: 'New dispatch job assigned to Mombasa route', time: '10m ago' },
-    { id: 'n2', text: 'Tanzania customs updates on Namanga border delay', time: '1h ago' },
-    { id: 'n3', text: 'Weekly revenue logs generated successfully', time: '1d ago' }
+    { id: 'n1', text: 'Mombasa corridor customs update. Malaba clearance delayed by 2h.', time: '5m ago' },
+    { id: 'n2', text: 'Weekly revenue logs generated successfully.', time: '1d ago' }
   ];
 
   return (
-    <div className="min-h-screen flex text-white overflow-hidden select-none"
-      style={{ background: 'var(--color-bg)' }}>
+    <div className="min-h-screen flex flex-col text-white select-none" style={{ backgroundColor: 'var(--color-bg)' }}>
+      
+      {/* ─── PREMIUM HORIZONTAL HEADER (Spacious Top Bar) ─── */}
+      <header className="h-20 border-b border-white/10 glass px-6 md:px-12 flex items-center justify-between sticky top-0 z-40">
+        
+        {/* Left Side: Brand Logo */}
+        <div className="flex items-center gap-6 lg:gap-12">
+          <Link to="/" className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center animate-pulse"
+              style={{ background: 'var(--gradient-primary)' }}>
+              <Truck size={20} className="text-white" />
+            </div>
+            <div>
+              <span className="font-extrabold text-xl text-white tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+                <span style={{ color: 'var(--color-primary)' }}>Tarx</span>emo
+              </span>
+              <p className="text-[9px] text-white/40 uppercase tracking-widest -mt-1 font-bold">Logistics</p>
+            </div>
+          </Link>
 
-      {/* ─── Sidebar Navigation Drawer ─── */}
-      <div
-        ref={sidebarRef}
-        className={`fixed lg:relative inset-y-0 left-0 z-40 w-64 glass border-r border-white/10 transition-all duration-300 transform ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-0 hidden lg:flex lg:w-20'
-        } flex flex-col justify-between p-4`}
-      >
-        <div className="space-y-8">
-          {/* Logo header */}
-          <div className="flex items-center justify-between pl-2">
-            <Link to="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: 'var(--gradient-primary)' }}>
-                <Truck size={18} className="text-white" />
-              </div>
-              {sidebarOpen && (
-                <span className="font-bold text-lg text-white" style={{ fontFamily: 'var(--font-heading)' }}>
-                  <span style={{ color: 'var(--color-primary)' }}>Tarx</span>emo
-                </span>
-              )}
-            </Link>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1 rounded-lg text-white/50 hover:text-white"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Navigation link list */}
-          <nav className="space-y-1.5">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
+          {/* Desktop Horizontal Navigation (Displays action links dynamically based on user role) */}
+          <nav className="hidden lg:flex items-center gap-6">
+            {actionItems.map((item) => {
               const isSelected = location.pathname === item.path;
               return (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
                     isSelected
-                      ? 'text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'
+                      ? 'text-orange-500 font-extrabold'
+                      : 'text-white/60 hover:text-white'
                   }`}
-                  style={isSelected ? { background: 'var(--gradient-primary)' } : {}}
                 >
-                  <Icon size={16} style={{ flexShrink: 0 }} />
-                  {sidebarOpen && <span>{item.label}</span>}
+                  <item.icon size={13} />
+                  <span>{item.label}</span>
                 </Link>
               );
             })}
           </nav>
         </div>
 
-        {/* Sidebar Footer parameters */}
-        <div className="space-y-4 pt-4 border-t border-white/5">
-          {sidebarOpen && (
-            <div className="p-3 bg-white/5 rounded-xl border border-white/10">
-              <p className="text-[8px] text-white/40 uppercase font-bold">Logged In Role</p>
-              <p className="text-[10px] font-bold mt-0.5 text-orange-400">{userRole.replace('_', ' ')}</p>
-            </div>
-          )}
+        {/* Right Side Tools (Notifications, Language switcher, Dropdown) */}
+        <div className="flex items-center gap-4">
+          
+          {/* Language Switcher */}
+          <div className="hidden sm:flex p-0.5 rounded-full glass border border-white/10 text-[10px] font-bold uppercase w-fit gap-1">
+            {['en', 'sw', 'fr'].map((lang) => (
+              <button
+                key={lang}
+                onClick={() => setLanguage(lang as any)}
+                className={`px-2.5 py-1 rounded-full uppercase transition-all ${
+                  language === lang
+                    ? 'btn-primary text-white font-extrabold'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                {lang}
+              </button>
+            ))}
+          </div>
 
+          {/* Theme switcher */}
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider text-red-400 hover:bg-red-500/10 transition-all"
+            onClick={toggleTheme}
+            className="p-2 rounded-full hover:bg-white/5 text-white/60 hover:text-white"
           >
-            <LogOut size={16} />
-            {sidebarOpen && <span>Sign Out</span>}
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
+
+          {/* Notifications bell */}
+          <div className="relative">
+            <button
+              onClick={() => setNotificationsOpen((p) => !p)}
+              className="p-2 rounded-full hover:bg-white/5 text-white/60 hover:text-white relative"
+            >
+              <Bell size={15} />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-orange-500" />
+            </button>
+            {notificationsOpen && (
+              <div className="absolute right-0 mt-3 w-80 glass border border-white/15 rounded-2xl shadow-2xl p-4 space-y-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <p className="text-[10px] text-white/40 uppercase font-bold border-b border-white/5 pb-2">Active notifications</p>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {dummyNotifications.map((notif) => (
+                    <div key={notif.id} className="text-[11px] leading-relaxed text-white/80 p-2.5 rounded-lg bg-white/5">
+                      <p>{notif.text}</p>
+                      <span className="text-[9px] text-white/40 mt-1 block">{notif.time}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* User profile dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setProfileDropdownOpen((p) => !p)}
+              className="flex items-center gap-2 p-1 pl-3 rounded-full border border-white/10 hover:border-orange-500/50 glass transition-all"
+            >
+              <span className="text-xs font-semibold text-white/80 hidden sm:inline">{user?.firstName || 'Operator'}</span>
+              <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center text-xs font-bold text-white relative">
+                {user?.firstName?.[0] || 'O'}
+              </div>
+            </button>
+            {profileDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-48 glass border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 text-xs animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="px-4 py-3 border-b border-white/5 bg-black/10">
+                  <p className="font-bold text-white">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-[9px] text-white/40 mt-0.5">{user?.email}</p>
+                  <span className="badge badge-primary text-[8px] mt-1.5 uppercase font-bold">{userRole.replace('_', ' ')}</span>
+                </div>
+                <Link to="/dashboard/settings" className="block px-4 py-2.5 text-white/70 hover:text-white hover:bg-white/5 transition-all">
+                  Profile Settings
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2.5 text-red-400 hover:bg-red-500/10 transition-all border-t border-white/5"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Menu trigger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden p-2 rounded-full hover:bg-white/5 text-white/60 hover:text-white"
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+
         </div>
-      </div>
+      </header>
 
-      {/* ─── Main Content Shell Area ─── */}
-      <div
-        ref={mainContentRef}
-        className="flex-1 min-h-screen flex flex-col justify-between overflow-y-auto"
-      >
-        {/* Header toolbar */}
-        <header className="h-16 border-b border-white/10 glass px-6 flex items-center justify-between relative z-30">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen((p) => !p)}
-              className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/5"
-            >
-              <Menu size={18} />
-            </button>
-            <span className="text-sm font-bold text-white hidden sm:block">
-              {activeItem ? activeItem.label : 'Dashboard'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/5"
-            >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-
-            {/* Notification Bell */}
-            <div className="relative">
-              <button
-                onClick={() => setNotificationsOpen((p) => !p)}
-                className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/5 relative"
+      {/* Mobile Menu Dropdown */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden glass border-b border-white/15 p-4 space-y-3 z-30 animate-in fade-in duration-200">
+          <nav className="flex flex-col gap-2">
+            {actionItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider ${
+                  location.pathname === item.path
+                    ? 'text-orange-500 font-extrabold bg-orange-500/10'
+                    : 'text-white/60 hover:text-white'
+                }`}
               >
-                <Bell size={16} />
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-500 animate-ping" />
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-500" />
-              </button>
-              {notificationsOpen && (
-                <div className="absolute right-0 mt-3 w-72 glass border border-white/15 rounded-2xl shadow-2xl p-4 space-y-3 z-50">
-                  <p className="text-[10px] text-white/40 uppercase font-bold border-b border-white/5 pb-2">Active Notifications</p>
-                  <div className="space-y-2.5 max-h-[220px] overflow-y-auto">
-                    {dummyNotifications.map((notif) => (
-                      <div key={notif.id} className="text-[11px] leading-relaxed text-white/80 p-2 rounded-lg bg-white/5">
-                        <p>{notif.text}</p>
-                        <span className="text-[9px] text-white/40 mt-1 block">{notif.time}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                <item.icon size={14} />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </nav>
+        </div>
+      )}
 
-            {/* User Profile Info */}
-            <div className="relative">
-              <button
-                onClick={() => setProfileDropdownOpen((p) => !p)}
-                className="flex items-center gap-2 p-1 pl-2.5 rounded-full border border-white/10 hover:border-orange-500/50 glass transition-all"
-              >
-                <span className="text-xs font-semibold text-white/80">{user?.firstName || 'User'}</span>
-                <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center text-xs font-bold text-white">
-                  {user?.firstName?.[0] || 'U'}
-                </div>
-              </button>
-              {profileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 glass border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 text-xs">
-                  <div className="px-4 py-3 border-b border-white/5">
-                    <p className="font-bold text-white">{user?.firstName} {user?.lastName}</p>
-                    <p className="text-[9px] text-white/40 mt-0.5">{user?.email}</p>
-                  </div>
-                  <Link to="/dashboard/settings" className="block px-4 py-2.5 text-white/70 hover:text-white hover:bg-white/5 transition-all">
-                    Profile Settings
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full text-left px-4 py-2.5 text-red-400 hover:bg-red-500/10 transition-all border-t border-white/5"
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </header>
-
-        {/* Main Dashboard Render Window */}
-        <main className="flex-1 p-6 md:p-8">
+      {/* ─── FULL-WIDTH MAIN CONTAINER ─── */}
+      <div className="flex-1 w-full px-6 md:px-12 py-10 relative z-10">
+        <main ref={contentContainerRef} className="w-full max-w-7xl mx-auto space-y-10">
           <Routes>
             <Route index element={
               userRole === 'DRIVER' ? (
@@ -418,27 +689,43 @@ const CombinedNavBar: React.FC = () => {
               ) : userRole === 'CUSTOMER' ? (
                 <CustomerDashboardView />
               ) : (
-                <DefaultDashboardView />
+                <DefaultDashboardView role={userRole} />
               )
             } />
             <Route path="settings" element={
-              <div className="glass border border-white/5 p-6 rounded-2xl space-y-4">
-                <h3 className="font-bold text-white">Profile settings</h3>
-                <p className="text-white/60 text-xs">Configure your user information cards and language properties.</p>
+              <div className="glass border border-white/5 p-6 md:p-8 rounded-2xl space-y-6">
+                <div>
+                  <h3 className="font-bold text-white text-lg">Profile Configuration</h3>
+                  <p className="text-white/40 text-xs mt-0.5">Configure your active driver licenses, phone credentials and session states.</p>
+                </div>
+                <div className="border-t border-white/5 pt-6 space-y-4 max-w-md">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">First Name</label>
+                      <input type="text" readOnly value={user?.firstName || ''} className="input-field text-xs bg-white/5 border-white/5 text-white/60" />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Last Name</label>
+                      <input type="text" readOnly value={user?.lastName || ''} className="input-field text-xs bg-white/5 border-white/5 text-white/60" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Security Role</label>
+                    <input type="text" readOnly value={userRole.replace('_', ' ')} className="input-field text-xs bg-white/5 border-white/5 text-white/60" />
+                  </div>
+                </div>
               </div>
             } />
-            {/* Fallback redirects */}
             <Route path="*" element={<Navigate to="" replace />} />
           </Routes>
         </main>
-
-        {/* Dashboard inner footer */}
-        <footer className="h-12 border-t border-white/10 px-6 flex items-center justify-between text-[10px] text-white/40 bg-black/20">
-          <span>© 2026 Tarxemo Logistics. Secure Session Active.</span>
-          <span>Role: {userRole}</span>
-        </footer>
-
       </div>
+
+      {/* Full-width Footer */}
+      <footer className="h-14 border-t border-white/10 px-6 md:px-12 flex items-center justify-between text-[10px] text-white/40 bg-black/20">
+        <span>© 2026 Tarxemo Logistics. Secure Session Active.</span>
+        <span>Role: {userRole}</span>
+      </footer>
 
       {/* Backdrop overlay */}
       {(profileDropdownOpen || notificationsOpen) && (
