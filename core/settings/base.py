@@ -104,9 +104,9 @@ CHANNEL_LAYERS = {
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME", default="tarxemo_db"),
-        "USER": config("DB_USER", default="tarxemo_user"),
-        "PASSWORD": config("DB_PASSWORD", default="password"),
+        "NAME": config("DB_NAME", default="tarxemo_logistics"),
+        "USER": config("DB_USER", default="tarxemo"),
+        "PASSWORD": config("DB_PASSWORD", default="tarxemo123"),
         "HOST": config("DB_HOST", default="localhost"),
         "PORT": config("DB_PORT", default="5432"),
     }

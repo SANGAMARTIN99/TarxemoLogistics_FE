@@ -3,6 +3,7 @@ apps.tenants.inputs — Tenant GraphQL Inputs
 """
 import strawberry
 from typing import Optional
+from strawberry.file_uploads import Upload
 
 
 @strawberry.input
@@ -26,6 +27,7 @@ class UpdateTenantInput:
     address: Optional[str] = None
     city: Optional[str] = None
     registration_number: Optional[str] = None
+    logo: Optional[Upload] = None
 
 
 @strawberry.input

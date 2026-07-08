@@ -86,7 +86,7 @@ class ChronoQuery:
     @strawberry.field
     def audit_logs(
         self,
-        info,
+        info: strawberry.Info,
         model_name: Optional[str] = None,
         object_id: Optional[str] = None,
         tenant_id: Optional[str] = None,
@@ -120,7 +120,7 @@ class ChronoQuery:
     @strawberry.field
     def chrono_snapshots(
         self,
-        info,
+        info: strawberry.Info,
         tenant_id: Optional[str] = None,
     ) -> List[ChronoSnapshotType]:
         qs = ChronoSnapshot.objects.all()
@@ -129,7 +129,7 @@ class ChronoQuery:
         return list(qs)
 
     @strawberry.field
-    def active_chrono_session(self, info) -> Optional[ChronoSessionType]:
+    def active_chrono_session(self, info: strawberry.Info) -> Optional[ChronoSessionType]:
         """Returns the caller's current active time-travel session, if any."""
         user = info.context.request.user
         if not user.is_authenticated:
@@ -143,7 +143,7 @@ class ChronoQuery:
 class ChronoMutation:
 
     @strawberry.mutation
-    def start_chrono_session(self, info, input: StartChronoSessionInput) -> ChronoSessionType:
+    def start_chrono_session(self, info: strawberry.Info, input: StartChronoSessionInput) -> ChronoSessionType:
         """Start a time-travel session for the authenticated user."""
         user = info.context.request.user
         if not user.is_authenticated:
@@ -163,7 +163,7 @@ class ChronoMutation:
         return session
 
     @strawberry.mutation
-    def end_chrono_session(self, info) -> bool:
+    def end_chrono_session(self, info: strawberry.Info) -> bool:
         """End the caller's active time-travel session."""
         user = info.context.request.user
         if not user.is_authenticated:
@@ -174,7 +174,7 @@ class ChronoMutation:
         return True
 
     @strawberry.mutation
-    def create_snapshot(self, info, input: CreateSnapshotInput) -> ChronoSnapshotType:
+    def create_snapshot(self, info: strawberry.Info, input: CreateSnapshotInput) -> ChronoSnapshotType:
         """Create a named snapshot for a tenant at a specific time."""
         user = info.context.request.user
         if not user.is_authenticated:

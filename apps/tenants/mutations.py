@@ -84,7 +84,9 @@ class TenantMutation:
             if user.role == "SUPER_ADMIN":
                 tenant = Tenant.objects.get(id=tenant_id)
             else:
-                tenant = Tenant.objects.get(id=tenant_id, id=user.tenant_id)
+                if str(tenant_id) != str(user.tenant_id):
+                    raise Exception("Permission denied.")
+                tenant = Tenant.objects.get(id=tenant_id)
         except Tenant.DoesNotExist:
             raise Exception("Tenant not found.")
 
@@ -100,6 +102,8 @@ class TenantMutation:
             tenant.city = input.city.strip()
         if input.registration_number is not None:
             tenant.registration_number = input.registration_number.strip()
+        if input.logo is not None:
+            tenant.logo = input.logo
 
         tenant.save()
         return tenant

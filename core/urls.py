@@ -16,11 +16,12 @@ urlpatterns = [
     # GraphQL API endpoint
     path(
         "graphql/",
-        AsyncGraphQLView.as_view(schema=schema),
+        AsyncGraphQLView.as_view(schema=schema, multipart_uploads_enabled=True),
         name="graphql",
     ),
 
     # REST endpoints (for file/image upload — per user rules)
+    path("api/tenants/", include("apps.tenants.urls")),
     path("api/tracking/", include("apps.tracking.urls")),
     path("api/drivers/", include("apps.drivers.urls")),
     path("api/payments/", include("apps.payments.urls")),

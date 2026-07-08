@@ -6,7 +6,7 @@ Role-based user model. Roles are NEVER user-selected — assigned by admins only
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
-from django.utils import timezone
+from django.utils import timezone as dj_timezone
 
 
 class UserRole(models.TextChoices):
@@ -97,7 +97,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     notification_preferences = models.JSONField(default=dict, blank=True)
 
     # ─── Timestamps ──────────────────────────────────────────────────────────
-    date_joined = models.DateTimeField(default=timezone.now)
+    date_joined = models.DateTimeField(default=dj_timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     USERNAME_FIELD = "email"
@@ -121,15 +121,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_account_locked(self) -> bool:
         if self.account_locked_until is None:
             return False
-        return timezone.now() < self.account_locked_until
+        return dj_timezone.now() < self.account_locked_until
 
     def record_failed_login(self):
         """Increment failed login counter and lock account after 5 attempts."""
         from datetime import timedelta
         self.failed_login_attempts += 1
-        self.last_failed_login = timezone.now()
+        self.last_failed_login = dj_timezone.now()
         if self.failed_login_attempts >= 5:
-            self.account_locked_until = timezone.now() + timedelta(minutes=30)
+            self.account_locked_until = dj_timezone.now() + timedelta(minutes=30)
         self.save(update_fields=["failed_login_attempts", "last_failed_login", "account_locked_until"])
 
     def reset_failed_logins(self):
@@ -171,7 +171,7 @@ class EmailVerificationToken(models.Model):
 
     @property
     def is_valid(self) -> bool:
-        return not self.is_used and timezone.now() < self.expires_at
+        return not self.is_used and dj_timezone.now() < self.expires_at
 
 
 class PasswordResetToken(models.Model):
@@ -190,4 +190,4 @@ class PasswordResetToken(models.Model):
 
     @property
     def is_valid(self) -> bool:
-        return not self.is_used and timezone.now() < self.expires_at
+        return not self.is_used and dj_timezone.now() < self.expires_at

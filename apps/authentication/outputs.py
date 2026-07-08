@@ -63,6 +63,6 @@ class LoginError:
     message: str
 
 
-@strawberry.union("LoginResult", types=(AuthTokensType, LoginError))
-def login_result(obj):
-    return obj
+from typing import Annotated
+
+LoginResult = Annotated[AuthTokensType | LoginError, strawberry.union("LoginResult")]
