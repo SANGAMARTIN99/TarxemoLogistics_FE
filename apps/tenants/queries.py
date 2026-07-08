@@ -4,8 +4,8 @@ apps.tenants.queries — Tenant GraphQL Queries
 import strawberry
 from typing import Optional, List
 from strawberry.types import Info
-from .models import Tenant, TenantTheme, TenantDomain
-from .outputs import TenantType, TenantThemeType, TenantDomainType
+from .models import Tenant, TenantTheme, TenantDomain, TenantMembership
+from .outputs import TenantType, TenantThemeType, TenantDomainType, TenantMembershipType
 
 
 @strawberry.type
@@ -102,3 +102,37 @@ class TenantQuery:
         if user.role not in ("TENANT_ADMIN", "SUPER_ADMIN"):
             raise Exception("Permission denied.")
         return list(TenantDomain.objects.filter(tenant=user.tenant))
+
+    @strawberry.field
+    def my_tenant_memberships(self, info: Info) -> List[TenantMembershipType]:
+        """Return all tenant memberships of the authenticated user."""
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+
+        if user.role == "SUPER_ADMIN":
+            # For SUPER_ADMIN, return membership representation for all active tenants
+            tenants = Tenant.objects.filter(status="ACTIVE")
+            return [
+                TenantMembership(
+                    id=tenant.id,
+                    user=user,
+                    tenant=tenant,
+                    role="SUPER_ADMIN"
+                )
+                for tenant in tenants
+            ]
+
+        # For normal users, fetch their memberships
+        memberships = list(TenantMembership.objects.filter(user=user).select_related("tenant"))
+
+        # Backward compatibility check: if user.tenant is set but not in memberships, add it!
+        if user.tenant and not any(m.tenant_id == user.tenant.id for m in memberships):
+            compat_membership = TenantMembership(
+                user=user,
+                tenant=user.tenant,
+                role=user.role
+            )
+            memberships.append(compat_membership)
+
+        return memberships

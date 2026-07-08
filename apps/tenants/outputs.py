@@ -5,7 +5,7 @@ import strawberry
 import strawberry_django
 from strawberry import auto
 from typing import Optional, List
-from .models import Tenant, TenantTheme, TenantDomain
+from .models import Tenant, TenantTheme, TenantDomain, TenantMembership
 
 
 @strawberry_django.type(TenantDomain)
@@ -88,9 +88,29 @@ class TenantType:
         return self.users.filter(is_active=True).count()
 
 
+
+
 @strawberry.type
 class DomainVerificationStatus:
     domain: str
     status: str
     message: str
     dns_txt_value: str
+
+
+from apps.authentication.outputs import UserType
+
+@strawberry_django.type(TenantMembership)
+class TenantMembershipType:
+    id: auto
+    role: auto
+    created_at: auto
+    updated_at: auto
+
+    @strawberry_django.field
+    def tenant(self) -> TenantType:
+        return self.tenant
+
+    @strawberry_django.field
+    def user(self) -> UserType:
+        return self.user

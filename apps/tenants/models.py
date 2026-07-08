@@ -8,6 +8,7 @@ TenantDomain: custom domain mapping.
 import uuid
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 
 
 class TenantPlan(models.TextChoices):
@@ -212,3 +213,42 @@ class TenantDomain(models.Model):
 
     def get_dns_txt_value(self) -> str:
         return f"tarxemo-verification={self.verification_token}"
+
+
+class TenantMembership(models.Model):
+    """
+    Maps a user to multiple tenants they can manage or access.
+    Allows one person to have different roles in different logistics companies.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="tenant_memberships",
+    )
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    role = models.CharField(
+        max_length=30,
+        default="OPERATIONS_MANAGER",
+        choices=[
+            ("TENANT_ADMIN", "Tenant Admin"),
+            ("OPERATIONS_MANAGER", "Operations Manager"),
+            ("FINANCE_OFFICER", "Finance Officer"),
+            ("DRIVER", "Driver"),
+            ("CUSTOMER", "Customer"),
+            ("VIEWER", "Viewer"),
+        ]
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "tenants_membership"
+        unique_together = ("user", "tenant")
+
+    def __str__(self):
+        return f"{self.user.email} -> {self.tenant.name} [{self.role}]"

@@ -11,22 +11,22 @@ from strawberry.schema.config import StrawberryConfig
 from apps.authentication.queries import AuthQuery
 from apps.tenants.queries import TenantQuery
 from apps.logistics.queries import LogisticsQuery
-from apps.drivers.queries import DriverQuery
+from apps.drivers.queries import DriversQuery
 from apps.tracking.queries import TrackingQuery
 from apps.pricing.queries import PricingQuery
-from apps.notifications.queries import NotificationQuery
-from apps.payments.queries import PaymentQuery
+from apps.notifications.queries import NotificationsQuery
+from apps.payments.queries import PaymentsQuery
 from chrono_state.schema import ChronoQuery
 
 # ─── App Mutations ────────────────────────────────────────────────────────────
 from apps.authentication.mutations import AuthMutation
 from apps.tenants.mutations import TenantMutation
 from apps.logistics.mutations import LogisticsMutation
-from apps.drivers.mutations import DriverMutation
+from apps.drivers.mutations import DriversMutation
 from apps.tracking.mutations import TrackingMutation
 from apps.pricing.mutations import PricingMutation
-from apps.notifications.mutations import NotificationMutation
-from apps.payments.mutations import PaymentMutation
+from apps.notifications.mutations import NotificationsMutation
+from apps.payments.mutations import PaymentsMutation
 from chrono_state.schema import ChronoMutation
 
 
@@ -36,11 +36,11 @@ class Query(
     AuthQuery,
     TenantQuery,
     LogisticsQuery,
-    DriverQuery,
+    DriversQuery,
     TrackingQuery,
     PricingQuery,
-    NotificationQuery,
-    PaymentQuery,
+    NotificationsQuery,
+    PaymentsQuery,
     ChronoQuery,
 ):
     pass
@@ -52,11 +52,11 @@ class Mutation(
     AuthMutation,
     TenantMutation,
     LogisticsMutation,
-    DriverMutation,
+    DriversMutation,
     TrackingMutation,
     PricingMutation,
-    NotificationMutation,
-    PaymentMutation,
+    NotificationsMutation,
+    PaymentsMutation,
     ChronoMutation,
 ):
     pass

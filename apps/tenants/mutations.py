@@ -11,14 +11,14 @@ from strawberry.types import Info
 from django.utils import timezone
 from django.utils.text import slugify
 
-from .models import Tenant, TenantTheme, TenantDomain, TenantStatus
+from .models import Tenant, TenantTheme, TenantDomain, TenantStatus, TenantMembership
 from .inputs import (
     CreateTenantInput,
     UpdateTenantInput,
     UpdateTenantThemeInput,
     AddCustomDomainInput,
 )
-from .outputs import TenantType, TenantThemeType, TenantDomainType, DomainVerificationStatus
+from .outputs import TenantType, TenantThemeType, TenantDomainType, DomainVerificationStatus, TenantMembershipType
 
 
 def _require_super_admin(info: Info):
@@ -251,4 +251,73 @@ class TenantMutation:
         if user.role != "SUPER_ADMIN" and domain_obj.tenant != user.tenant:
             raise Exception("Permission denied.")
         domain_obj.delete()
+        return True
+
+    @strawberry.mutation
+    def add_tenant_membership(
+        self, info: Info, user_id: str, tenant_id: str, role: str
+    ) -> TenantMembershipType:
+        """
+        SUPER_ADMIN or TENANT_ADMIN: associate a user with a tenant.
+        - TENANT_ADMIN can only add users to their own tenant and cannot assign SUPER_ADMIN or TENANT_ADMIN roles.
+        """
+        current_user = info.context.request.user
+        if not current_user.is_authenticated:
+            raise Exception("Authentication required.")
+
+        # Permissions check
+        if current_user.role == "SUPER_ADMIN":
+            pass
+        elif current_user.role == "TENANT_ADMIN":
+            if str(current_user.tenant_id) != str(tenant_id):
+                raise Exception("Permission denied.")
+            if role in ("SUPER_ADMIN", "TENANT_ADMIN"):
+                raise Exception("You cannot assign this role.")
+        else:
+            raise Exception("Permission denied.")
+
+        from apps.authentication.models import User
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            raise Exception("User not found.")
+
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            raise Exception("Tenant not found.")
+
+        # Create or update membership
+        membership, created = TenantMembership.objects.update_or_create(
+            user=target_user,
+            tenant=tenant,
+            defaults={"role": role}
+        )
+
+        return membership
+
+    @strawberry.mutation
+    def remove_tenant_membership(
+        self, info: Info, membership_id: str
+    ) -> bool:
+        """SUPER_ADMIN or TENANT_ADMIN: remove a user from a tenant."""
+        current_user = info.context.request.user
+        if not current_user.is_authenticated:
+            raise Exception("Authentication required.")
+
+        try:
+            membership = TenantMembership.objects.get(id=membership_id)
+        except TenantMembership.DoesNotExist:
+            raise Exception("Membership not found.")
+
+        # Permissions check
+        if current_user.role == "SUPER_ADMIN":
+            pass
+        elif current_user.role == "TENANT_ADMIN":
+            if str(current_user.tenant_id) != str(membership.tenant_id):
+                raise Exception("Permission denied.")
+        else:
+            raise Exception("Permission denied.")
+
+        membership.delete()
         return True
