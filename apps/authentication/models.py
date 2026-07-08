@@ -174,11 +174,15 @@ class EmailVerificationToken(models.Model):
         return not self.is_used and dj_timezone.now() < self.expires_at
 
 
+import random
+def generate_6_digit_otp():
+    return str(random.randint(100000, 999999))
+
 class PasswordResetToken(models.Model):
     """Secure password reset token (single-use, time-limited)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_reset_tokens")
-    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    token = models.CharField(max_length=6, default=generate_6_digit_otp)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_used = models.BooleanField(default=False)

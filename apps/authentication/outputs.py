@@ -62,6 +62,12 @@ class LoginError:
     code: str
     message: str
 
+@strawberry.type
+class VerifyOtpPayload:
+    success: bool
+    message: str
+    reset_token: Optional[str] = None
+
 
 @strawberry.type
 class ExistsType:

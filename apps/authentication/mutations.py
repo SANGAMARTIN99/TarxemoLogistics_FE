@@ -27,7 +27,7 @@ from .inputs import (
     ResetPasswordInput,
     UpdateProfileInput,
 )
-from .outputs import AuthTokensType, UserType, MessageType, LoginError
+from .outputs import AuthTokensType, UserType, MessageType, LoginError, VerifyOtpPayload
 
 
 def _validate_password_strength(password: str) -> None:
@@ -237,6 +237,28 @@ class AuthMutation:
         )
 
     @strawberry.mutation
+    def verify_otp(self, info: Info, email: str, otp: str) -> VerifyOtpPayload:
+        email = email.strip().lower()
+        try:
+            user = User.objects.get(email=email, is_active=True)
+            # Find the most recent active OTP for this user
+            prt = PasswordResetToken.objects.filter(user=user, is_used=False).order_by('-created_at').first()
+            
+            if not prt or prt.token != otp:
+                return VerifyOtpPayload(success=False, message="Invalid or expired OTP code.")
+            
+            if not prt.is_valid:
+                return VerifyOtpPayload(success=False, message="OTP code has expired.")
+            
+            return VerifyOtpPayload(
+                success=True, 
+                message="OTP verified successfully.", 
+                reset_token=prt.token
+            )
+        except User.DoesNotExist:
+            return VerifyOtpPayload(success=False, message="Invalid or expired OTP code.")
+
+    @strawberry.mutation
     def reset_password(self, info: Info, input: ResetPasswordInput) -> MessageType:
         try:
             prt = PasswordResetToken.objects.get(token=input.token)
@@ -361,10 +383,9 @@ def _send_password_reset_email(user: User, request):
         expires_at=timezone.now() + timedelta(hours=1),
         requester_ip=request.META.get("REMOTE_ADDR", ""),
     )
-    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token.token}"
     send_mail(
-        subject="Reset your Tarxemo password",
-        message=f"Hi {user.first_name},\n\nClick the link to reset your password:\n{reset_url}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.",
+        subject="Your Tarxemo Password Reset OTP",
+        message=f"Hi {user.first_name},\n\nYou requested a password reset. Here is your 6-digit OTP code:\n\n{token.token}\n\nThis code expires in 1 hour. If you didn't request this, ignore this email.",
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
         fail_silently=True,

@@ -39,3 +39,4 @@ boto3>=1.35
 # Utilities
 phonenumbers>=8.13
 django-filter>=24.3
+requests>=2.31
