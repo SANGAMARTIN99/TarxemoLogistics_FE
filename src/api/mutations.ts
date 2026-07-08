@@ -53,8 +53,8 @@ export const LOGOUT_USER = gql`
 
 // ─── PASSWORD RESET ────────────────────────────────────────────────────────────
 export const REQUEST_PASSWORD_RESET = gql`
-  mutation RequestPasswordReset($email: String!) {
-    requestPasswordReset(email: $email) {
+  mutation RequestPasswordReset($input: RequestPasswordResetInput!) {
+    requestPasswordReset(input: $input) {
       success
       message
     }
@@ -72,8 +72,8 @@ export const VERIFY_OTP = gql`
 `;
 
 export const RESET_PASSWORD = gql`
-  mutation ResetPassword($resetToken: String!, $newPassword: String!) {
-    resetPassword(resetToken: $resetToken, newPassword: $newPassword) {
+  mutation ResetPassword($input: ResetPasswordInput!) {
+    resetPassword(input: $input) {
       success
       message
     }

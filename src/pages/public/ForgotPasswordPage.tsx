@@ -92,7 +92,7 @@ const ForgotPasswordPage: React.FC = () => {
       setCountdown(120);
       setCanResend(false);
 
-      const { data } = await requestReset({ variables: { email } });
+      const { data } = await requestReset({ variables: { input: { email } } });
       if (data?.requestPasswordReset?.success) {
         toast.success('A new OTP security token has been dispatched!');
       } else {
@@ -122,14 +122,10 @@ const ForgotPasswordPage: React.FC = () => {
 
     try {
       // Step 1 check if email exists. The server responds with success if the account is present.
-      const { data } = await requestReset({ variables: { email } });
+      const { data } = await requestReset({ variables: { input: { email } } });
       
       if (data?.requestPasswordReset?.success) {
         toast.success(data.requestPasswordReset.message || 'OTP code sent successfully!');
-        
-        // Generate and log mock code for ease of local validation
-        const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-        setMockOtpCode(generatedCode);
         
         // Advance to step 2 (OTP code input verification)
         setStep(2);
@@ -138,11 +134,7 @@ const ForgotPasswordPage: React.FC = () => {
         toast.error('Email verification check failed');
       }
     } catch (err: any) {
-      // In case backend is offline, we fall back to a mock demo flow for presentation
-      toast.error('Backend server offline. Simulating recovery pipeline...');
-      const demoCode = '482937';
-      setMockOtpCode(demoCode);
-      setStep(2);
+      toast.error('Backend server offline or request failed.');
     }
   };
 
@@ -168,14 +160,7 @@ const ForgotPasswordPage: React.FC = () => {
         setOtpError(data?.verifyOtp?.message || 'Invalid or expired OTP code');
       }
     } catch {
-      // Fallback verification matching the simulated code on the right panel
-      if (otp === mockOtpCode) {
-        setResetToken('mock-secret-jwt-token-4712893');
-        toast.success('Simulated: Code verified successfully!');
-        setStep(3);
-      } else {
-        setOtpError('Invalid OTP code code. Please check the simulated inbox.');
-      }
+      toast.error('Failed to verify OTP code.');
     }
   };
 
@@ -198,8 +183,11 @@ const ForgotPasswordPage: React.FC = () => {
     try {
       const { data } = await resetPassword({
         variables: {
-          resetToken: resetToken,
-          newPassword: newPassword
+          input: {
+            token: resetToken,
+            newPassword: newPassword,
+            confirmPassword: confirmNewPassword
+          }
         }
       });
 
@@ -212,10 +200,7 @@ const ForgotPasswordPage: React.FC = () => {
         setPwdError(data?.resetPassword?.message || 'Reset expired. Re-authenticate.');
       }
     } catch {
-      toast.success('Simulated: Password updated successfully!');
-      setTimeout(() => {
-        navigate('/auth?mode=login');
-      }, 1500);
+      toast.error('Failed to reset password.');
     }
   };
 
@@ -246,10 +231,10 @@ const ForgotPasswordPage: React.FC = () => {
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full opacity-15 blur-[120px] pointer-events-none"
         style={{ background: 'radial-gradient(circle, #E8580A 0%, transparent 70%)' }} />
 
-      <div className="container mx-auto max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+      <div className="container mx-auto max-w-md items-center relative z-10 flex justify-center">
         
-        {/* Left column (Form interface) */}
-        <div ref={leftPaneRef} className="lg:col-span-6 flex justify-center">
+        {/* Form interface */}
+        <div ref={leftPaneRef} className="w-full flex justify-center">
           <div className="w-full max-w-md glass border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
             
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -276,8 +261,8 @@ const ForgotPasswordPage: React.FC = () => {
                       type="email"
                       value={email}
                       onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (emailError) setEmailError('');
+                         setEmail(e.target.value);
+                         if (emailError) setEmailError('');
                       }}
                       placeholder="driver@tarxemo.com"
                       className={`input-field text-xs pl-10 ${emailError ? 'error' : ''}`}
@@ -319,8 +304,8 @@ const ForgotPasswordPage: React.FC = () => {
                       maxLength={6}
                       value={otp}
                       onChange={(e) => {
-                        setOtp(e.target.value);
-                        if (otpError) setOtpError('');
+                         setOtp(e.target.value);
+                         if (otpError) setOtpError('');
                       }}
                       placeholder="Enter 6-digit OTP"
                       className={`input-field text-xs pl-10 font-bold tracking-widest ${otpError ? 'error' : ''}`}
@@ -453,81 +438,6 @@ const ForgotPasswordPage: React.FC = () => {
                   {resetLoading ? 'Resetting Password...' : t('auth.resetPassword')}
                 </button>
               </form>
-            )}
-
-          </div>
-        </div>
-
-        {/* Right column: Simulated Inbox displaying gorgeous colorful HTML email */}
-        <div ref={emailSandboxRef} className="lg:col-span-6 flex justify-center">
-          <div className="w-full max-w-md glass border border-white/10 rounded-3xl p-4 md:p-6 shadow-2xl relative">
-            <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-4 text-xs font-bold text-white/40">
-              <MailOpen size={14} className="text-orange-500" />
-              <span>Simulated Inbox Sandbox (Live Verification)</span>
-            </div>
-
-            {step === 1 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 text-white/30">
-                  <Mail size={22} />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-xs font-bold text-white">No incoming dispatch alerts</h4>
-                  <p className="text-[10px] text-white/40 max-w-xs">Enter your email and click Send OTP to dispatch verification codes.</p>
-                </div>
-              </div>
-            ) : (
-              /* Beautiful colorful HTML email mockup */
-              <div className="rounded-2xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl text-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {/* Email Header */}
-                <div className="bg-slate-950 p-4 border-b border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-                      style={{ background: 'var(--gradient-primary)' }}>
-                      <Flame size={12} className="text-white" />
-                    </div>
-                    <span className="text-[10px] font-extrabold text-white tracking-widest uppercase">Tarxemo Dispatch</span>
-                  </div>
-                  <span className="text-[9px] text-white/40">Just now</span>
-                </div>
-
-                {/* Email Metadata */}
-                <div className="p-3 bg-slate-900/60 border-b border-white/5 text-[9px] text-white/60 space-y-0.5">
-                  <p><strong>From:</strong> security-alerts@tarxemo.com</p>
-                  <p><strong>To:</strong> {email || 'user@tarxemo.com'}</p>
-                  <p><strong>Subject:</strong> Action Required: Secure Account Recovery OTP</p>
-                </div>
-
-                {/* Email Body */}
-                <div className="p-6 bg-white space-y-5 text-xs text-slate-700 leading-relaxed font-sans">
-                  <h3 className="text-sm font-black text-slate-900 border-l-4 border-orange-500 pl-2">
-                    Account Verification Code
-                  </h3>
-                  
-                  <p>
-                    Hello, <br />
-                    We received a request to recover your Tarxemo Logistics platform password. Enter the security code below to establish a new password credential:
-                  </p>
-
-                  {/* Dynamic OTP block */}
-                  <div className="my-6 p-4 rounded-xl text-center bg-orange-50 border border-orange-100 space-y-1.5">
-                    <span className="text-[10px] text-orange-600 font-bold uppercase tracking-widest block">Security OTP Code</span>
-                    <span className="text-2xl font-black text-orange-500 tracking-[0.4em] block pl-[0.4em]">
-                      {mockOtpCode}
-                    </span>
-                    <span className="text-[9px] text-slate-400 block">Valid for 2 minutes. Do not share this token.</span>
-                  </div>
-
-                  <p>
-                    If you did not initiate this recovery process, please notify security-audit@tarxemo.com immediately or check with your tenant admin.
-                  </p>
-
-                  <div className="pt-4 border-t border-slate-100 text-[9px] text-slate-400">
-                    <p>© 2026 Tarxemo Logistics Inc. Nairobi-Dar es Salaam highway corridors.</p>
-                  </div>
-                </div>
-
-              </div>
             )}
 
           </div>
