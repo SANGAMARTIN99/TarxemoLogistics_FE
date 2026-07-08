@@ -63,6 +63,11 @@ class LoginError:
     message: str
 
 
+@strawberry.type
+class ExistsType:
+    exists: bool
+
+
 from typing import Annotated
 
 LoginResult = Annotated[AuthTokensType | LoginError, strawberry.union("LoginResult")]

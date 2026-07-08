@@ -5,8 +5,9 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from strawberry.django.views import AsyncGraphQLView
+from strawberry.django.views import GraphQLView
 from mainschema import schema
+from django.views.decorators.csrf import csrf_exempt
 
 
 urlpatterns = [
@@ -16,7 +17,7 @@ urlpatterns = [
     # GraphQL API endpoint
     path(
         "graphql/",
-        AsyncGraphQLView.as_view(schema=schema, multipart_uploads_enabled=True),
+        csrf_exempt(GraphQLView.as_view(schema=schema, multipart_uploads_enabled=True)),
         name="graphql",
     ),
 

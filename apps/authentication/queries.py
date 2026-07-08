@@ -4,8 +4,9 @@ apps.authentication.queries — GraphQL Queries
 import strawberry
 from typing import Optional, List
 from strawberry.types import Info
-from .outputs import UserType
+from .outputs import UserType, ExistsType
 from .models import User
+from django.db import models
 
 
 def require_authenticated(info: Info) -> User:
@@ -25,6 +26,18 @@ class AuthQuery:
         if not user.is_authenticated:
             return None
         return user
+
+    @strawberry.field
+    def check_email_exists(self, info: Info, email: str) -> ExistsType:
+        """Check if an email is already registered."""
+        exists = User.objects.filter(email=email.strip().lower()).exists()
+        return ExistsType(exists=exists)
+
+    @strawberry.field
+    def check_phone_exists(self, info: Info, phone: str) -> ExistsType:
+        """Check if a phone number is already registered."""
+        exists = User.objects.filter(phone_number=phone.strip()).exists()
+        return ExistsType(exists=exists)
 
     @strawberry.field
     def users(
