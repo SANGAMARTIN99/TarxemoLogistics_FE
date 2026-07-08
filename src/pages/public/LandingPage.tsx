@@ -14,6 +14,7 @@ import { GET_COMPANIES, GET_JOBS } from '../../api/queries';
 import { APPLY_FOR_JOB } from '../../api/mutations';
 import { useAppStore } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
+import { convertAndFormatCurrency } from '../../utils/currency';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -61,7 +62,7 @@ interface Job {
 const LandingPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAppStore();
+  const { isAuthenticated, currency } = useAppStore();
 
   // ─────────────────────────────────────────────────────────────────────────────
   // STATE MANAGEMENT
@@ -697,7 +698,7 @@ const LandingPage: React.FC = () => {
                         <div className="text-left lg:text-right">
                           <p className="text-[10px] text-white/40 uppercase font-bold">Estimated Compensation</p>
                           <p className="text-base font-black text-orange-500 mt-0.5">
-                            {job.currency} {job.salaryMin.toLocaleString()} - {job.salaryMax.toLocaleString()}
+                            {convertAndFormatCurrency(job.salaryMin, currency)} - {convertAndFormatCurrency(job.salaryMax, currency)}
                           </p>
                         </div>
                         <button

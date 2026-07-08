@@ -12,6 +12,7 @@ import { GET_JOBS } from '../../api/queries';
 import { APPLY_FOR_JOB } from '../../api/mutations';
 import { useAppStore } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
+import { convertAndFormatCurrency } from '../../utils/currency';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES & INTERFACES
@@ -47,7 +48,7 @@ interface Job {
 const JobsPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated } = useAppStore();
+  const { isAuthenticated, currency } = useAppStore();
 
   // Master Detail Drawer Panel State
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -411,7 +412,7 @@ const JobsPage: React.FC = () => {
                     <div className="text-left lg:text-right">
                       <p className="text-[10px] text-white/40 uppercase font-bold">Estimated Compensation</p>
                       <p className="text-base font-black text-orange-500 mt-0.5">
-                        {job.currency} {job.salaryMin.toLocaleString()} - {job.salaryMax.toLocaleString()}
+                        {convertAndFormatCurrency(job.salaryMin, currency)} - {convertAndFormatCurrency(job.salaryMax, currency)}
                       </p>
                     </div>
                     <button

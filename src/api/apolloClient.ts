@@ -13,14 +13,18 @@ const authLink = new ApolloLink((operation, forward) => {
     if (stored) {
       const { state } = JSON.parse(stored);
       const token = state?.accessToken;
-      if (token) {
-        operation.setContext(({ headers = {} }) => ({
-          headers: {
-            ...headers,
-            Authorization: `Bearer ${token}`,
-          },
-        }));
-      }
+      const tenantId = state?.activeTenantId || state?.user?.tenantId;
+      
+      operation.setContext(({ headers = {} }) => {
+        const newHeaders: Record<string, string> = { ...headers };
+        if (token) {
+          newHeaders.Authorization = `Bearer ${token}`;
+        }
+        if (tenantId) {
+          newHeaders['X-Tenant-ID'] = tenantId;
+        }
+        return { headers: newHeaders };
+      });
     }
   } catch {}
   return forward(operation);

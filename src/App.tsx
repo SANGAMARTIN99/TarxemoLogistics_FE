@@ -31,10 +31,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+import TenantThemeManager from './components/layout/TenantThemeManager';
+
+// ... existing lazy loads ...
+
 const App: React.FC = () => {
   return (
-    <Suspense fallback={<Spinner />}>
-      <Routes>
+    <TenantThemeManager>
+      <Suspense fallback={<Spinner />}>
+        <Routes>
         {/* ─ Public Routes ─ */}
         <Route element={<PublicLayout />}>
           <Route path="/"          element={<LandingPage />} />
@@ -57,7 +62,8 @@ const App: React.FC = () => {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Suspense>
+      </Suspense>
+    </TenantThemeManager>
   );
 };
 

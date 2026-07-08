@@ -198,3 +198,34 @@ export const GET_CUSTOMER_DASHBOARD = gql`
     }
   }
 `;
+
+export const GET_MY_TENANT_MEMBERSHIPS = gql`
+  query GetMyTenantMemberships {
+    myTenantMemberships {
+      id
+      role
+      tenant {
+        id
+        name
+        slug
+        logoUrl
+      }
+    }
+  }
+`;
+
+export const GET_TENANT_THEME = gql`
+  query GetTenantTheme($tenantId: String) {
+    tenantTheme(tenantId: $tenantId) {
+      primaryColor
+      primaryColorDark
+      secondaryColor
+      accentColor
+      backgroundColor
+      backgroundDark
+      textColor
+      textColorDark
+      borderRadius
+    }
+  }
+`;

@@ -4,302 +4,23 @@ import { useQuery, useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
   Truck, Building2, Briefcase, Layers, LayoutDashboard,
-  Bell, Sun, Moon, ClipboardList, ShieldCheck, Clock,
-  RefreshCw, Send, ArrowRight, Settings, FileText, X, Menu, Map
+  Bell, Sun, Moon, ClipboardList,
+  RefreshCw, Settings, FileText, X, Menu, Map
 } from 'lucide-react';
 
-import { GET_DRIVER_DASHBOARD, GET_CUSTOMER_DASHBOARD } from '../../api/queries';
+import { GET_MY_TENANT_MEMBERSHIPS } from '../../api/queries';
 import { LOGOUT_USER } from '../../api/mutations';
 import { useAppStore } from '../../store/useAppStore';
 import type { UserRole } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
+import CustomerDashboard from '../../pages/Customer/CustomerDashboard';
+import DriverDashboard from '../../pages/Driver/DriverDashboard';
+import TenantDashboard from '../../pages/TenantAdmin/TenantDashboard';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROLE-BASED DASHBOARD VIEWS ( horizontal grids, full-width layouts )
 // ─────────────────────────────────────────────────────────────────────────────
-
-// 1. DRIVER DASHBOARD VIEW
-const DriverDashboardView: React.FC = () => {
-  const { data, loading, error } = useQuery(GET_DRIVER_DASHBOARD, {
-    fetchPolicy: 'cache-and-network'
-  });
-
-  const [transitLog, setTransitLog] = useState({
-    corridorName: 'Mombasa - Kampala Highway',
-    locationCheckpoint: 'Malaba Border Station',
-    notes: 'Standard clearances verified. Weather clear. Moving towards Kampala Central Depot.'
-  });
-
-  const handleTransitLogSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast.success('Transit log report dispatched successfully!');
-    setTransitLog({ ...transitLog, notes: '' });
-  };
-
-  if (loading) return <div className="h-64 rounded-2xl glass animate-pulse" />;
-  if (error) return <div className="p-8 text-center glass border border-white/5 rounded-2xl text-xs text-white/50">Unable to query driver logs.</div>;
-
-  const dashboardData = data?.driverDashboard || {
-    availableJobs: 14,
-    completedTrips: 48,
-    rating: 4.95,
-    earnings: { thisMonth: 125000, currency: 'KES' },
-    upcomingTrips: [
-      { id: '1', title: 'Container Freight dispatch', pickup: 'Mombasa Port', delivery: 'Kampala Depot', date: '2026-08-12', status: 'ASSIGNED' }
-    ]
-  };
-
-  return (
-    <div className="space-y-8 w-full max-w-full">
-      {/* Upper overview widgets */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { label: 'Assigned Driver Rating', val: `${dashboardData.rating} / 5.0`, color: 'border-l-yellow-500' },
-          { label: 'Completed Cargo Trips', val: `${dashboardData.completedTrips} Trips`, color: 'border-l-emerald-500' },
-          { label: 'Open Corridor dispatches', val: `${dashboardData.availableJobs} Jobs`, color: 'border-l-orange-500' },
-          { label: 'Monthly Earnings Estimate', val: `${dashboardData.earnings.currency} ${dashboardData.earnings.thisMonth.toLocaleString()}`, color: 'border-l-indigo-500' }
-        ].map((c, i) => (
-          <div key={i} className={`glass p-6 rounded-2xl border-l-4 ${c.color} border-y-0 border-r-0 shadow-md`}>
-            <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</p>
-            <p className="text-xl font-extrabold text-white mt-2">{c.val}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left column: Upcoming Trips */}
-        <div className="lg:col-span-7 glass border border-white/5 p-6 rounded-2xl space-y-6">
-          <div className="flex justify-between items-center border-b border-white/5 pb-4">
-            <div>
-              <h3 className="font-bold text-sm text-white uppercase tracking-wider">Active Transit Corridor</h3>
-              <p className="text-[10px] text-white/40">Assigned corridor routes and milestones.</p>
-            </div>
-            <span className="badge badge-success text-[8px] px-2 py-0.5 flex items-center gap-1">
-              <ShieldCheck size={10} /> Active Duty
-            </span>
-          </div>
-
-          {dashboardData.upcomingTrips.map((trip: any) => (
-            <div key={trip.id} className="p-5 glass-dark rounded-xl border border-white/5 space-y-4">
-              <div className="flex justify-between items-start flex-wrap gap-2">
-                <span className="text-xs font-bold text-white uppercase">{trip.title}</span>
-                <span className="badge badge-primary text-[8px] px-2 py-0.5">{trip.status}</span>
-              </div>
-              <div className="space-y-2.5 text-xs text-white/60">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-orange-500" />
-                  <span>Pickup: <strong>{trip.pickup}</strong></span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>Delivery: <strong>{trip.delivery}</strong></span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock size={12} className="text-orange-500" />
-                  <span>Departure Date: <strong>{trip.date}</strong></span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Right column: Submit Transit logs */}
-        <div className="lg:col-span-5 glass border border-white/5 p-6 rounded-2xl space-y-6">
-          <div className="border-b border-white/5 pb-4">
-            <h3 className="font-bold text-sm text-white uppercase tracking-wider">Report Transit Logs</h3>
-            <p className="text-[10px] text-white/40">Send location manifests directly to tenant admins.</p>
-          </div>
-
-          <form onSubmit={handleTransitLogSubmit} className="space-y-4">
-            <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Active Corridor</label>
-              <input
-                type="text"
-                value={transitLog.corridorName}
-                readOnly
-                className="input-field text-xs bg-white/5 border-white/5 text-white/60 select-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Current Checkpoint</label>
-              <input
-                type="text"
-                value={transitLog.locationCheckpoint}
-                onChange={(e) => setTransitLog({ ...transitLog, locationCheckpoint: e.target.value })}
-                className="input-field text-xs"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Operational Manifest Notes</label>
-              <textarea
-                value={transitLog.notes}
-                onChange={(e) => setTransitLog({ ...transitLog, notes: e.target.value })}
-                className="input-field text-xs h-20 resize-none"
-                placeholder="Enter custom delay audits, fuel details, border remarks..."
-                required
-              />
-            </div>
-            <button type="submit" className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5">
-              <span>Send Log Manifest</span>
-              <Send size={12} />
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 2. CUSTOMER DASHBOARD VIEW
-const CustomerDashboardView: React.FC = () => {
-  const { data, loading, error } = useQuery(GET_CUSTOMER_DASHBOARD, {
-    fetchPolicy: 'cache-and-network'
-  });
-
-  const [quoteRequest, setQuoteRequest] = useState({
-    pickup: '',
-    delivery: '',
-    weight: '',
-    description: ''
-  });
-
-  const handleRequestQuote = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast.success('Cargo quotation query dispatched to regional transport offices!');
-    setQuoteRequest({ pickup: '', delivery: '', weight: '', description: '' });
-  };
-
-  if (loading) return <div className="h-64 rounded-2xl glass animate-pulse" />;
-  if (error) return <div className="p-8 text-center glass border border-white/5 rounded-2xl text-xs text-white/50">Unable to query customer console.</div>;
-
-  const dashboardData = data?.customerDashboard || {
-    activeShipments: 3,
-    totalShipments: 12,
-    pendingQuotes: 1,
-    recentShipments: [
-      { id: '1', trackingNumber: 'TRX-782635', status: 'IN_TRANSIT', pickup: 'Mombasa', delivery: 'Kigali', estimatedDelivery: '2026-08-15' },
-      { id: '2', trackingNumber: 'TRX-192837', status: 'DELIVERED', pickup: 'Dar es Salaam', delivery: 'Nairobi', estimatedDelivery: '2026-08-02' }
-    ]
-  };
-
-  return (
-    <div className="space-y-8 w-full max-w-full">
-      {/* Top metrics grids */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {[
-          { label: 'Active Shipments In Corridor', val: `${dashboardData.activeShipments} Cargoes` },
-          { label: 'Pending Corridor Quotations', val: `${dashboardData.pendingQuotes} Request` },
-          { label: 'Delivered Freight Volumes', val: `${dashboardData.totalShipments} Containers` }
-        ].map((c, i) => (
-          <div key={i} className="glass p-6 rounded-2xl border border-white/5 shadow-md">
-            <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</p>
-            <p className="text-xl font-extrabold text-white mt-2">{c.val}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left column: Live shipments tracking */}
-        <div className="lg:col-span-7 glass border border-white/5 p-6 rounded-2xl space-y-6">
-          <div className="border-b border-white/5 pb-4">
-            <h3 className="font-bold text-sm text-white uppercase tracking-wider">Live Cargo Tracking Consoles</h3>
-            <p className="text-[10px] text-white/40 font-semibold">Real-time status updates from the Northern and Central Transit Corridors.</p>
-          </div>
-
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-xs text-left border-collapse min-w-[500px]">
-              <thead>
-                <tr className="border-b border-white/10 text-white/40 text-[9px] uppercase tracking-wider font-bold">
-                  <th className="py-3 px-2">Tracking ID</th>
-                  <th className="py-3 px-2">Corridor Route</th>
-                  <th className="py-3 px-2">Est Delivery</th>
-                  <th className="py-3 px-2">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-white/80">
-                {dashboardData.recentShipments.map((s: any) => (
-                  <tr key={s.id} className="hover:bg-white/5 transition-colors">
-                    <td className="py-4 px-2 font-bold text-orange-400">{s.trackingNumber}</td>
-                    <td className="py-4 px-2">{s.pickup} to {s.delivery}</td>
-                    <td className="py-4 px-2">{s.estimatedDelivery}</td>
-                    <td className="py-4 px-2">
-                      <span className={`badge text-[8px] px-2 py-0.5 font-bold ${
-                        s.status === 'DELIVERED' ? 'badge-success' : 'badge-primary'
-                      }`}>
-                        {s.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Right column: Quote dispatch form */}
-        <div className="lg:col-span-5 glass border border-white/5 p-6 rounded-2xl space-y-6">
-          <div className="border-b border-white/5 pb-4">
-            <h3 className="font-bold text-sm text-white uppercase tracking-wider">Request Freight Quotation</h3>
-            <p className="text-[10px] text-white/40">Request corridor quotes from verified shippers.</p>
-          </div>
-
-          <form onSubmit={handleRequestQuote} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Pickup Station</label>
-                <input
-                  type="text"
-                  value={quoteRequest.pickup}
-                  onChange={(e) => setQuoteRequest({ ...quoteRequest, pickup: e.target.value })}
-                  placeholder="e.g. Mombasa Port"
-                  className="input-field text-xs"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Delivery Depot</label>
-                <input
-                  type="text"
-                  value={quoteRequest.delivery}
-                  onChange={(e) => setQuoteRequest({ ...quoteRequest, delivery: e.target.value })}
-                  placeholder="e.g. Kigali Depot"
-                  className="input-field text-xs"
-                  required
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Cargo Weight Estimate (Tons)</label>
-              <input
-                type="number"
-                value={quoteRequest.weight}
-                onChange={(e) => setQuoteRequest({ ...quoteRequest, weight: e.target.value })}
-                placeholder="e.g. 24"
-                className="input-field text-xs"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Description of Cargo Goods</label>
-              <textarea
-                value={quoteRequest.description}
-                onChange={(e) => setQuoteRequest({ ...quoteRequest, description: e.target.value })}
-                className="input-field text-xs h-16 resize-none"
-                placeholder="e.g. Industrial machinery parts..."
-                required
-              />
-            </div>
-            <button type="submit" className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5">
-              <span>Send Quotation Query</span>
-              <ArrowRight size={12} />
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
+// Redundant views completely cleaned up
 
 // 3. DEFAULT ADMIN/MANAGEMENT VIEW ( Super Admin, Tenant Admin, Operations, Finance )
 const DefaultDashboardView: React.FC<{ role: UserRole }> = ({ role }) => {
@@ -423,13 +144,26 @@ const CombinedNavBar: React.FC = () => {
   const location = useLocation();
 
   // AppStore context parameters
-  const { user, logout, theme, toggleTheme, language, setLanguage } = useAppStore();
-  const userRole: UserRole = user?.role || 'DRIVER';
+  const { user, logout, theme, toggleTheme, language, setLanguage, activeTenantId, setActiveTenantId, currency, setCurrency } = useAppStore();
 
   // Toggle/dropdown states
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const switcherRef = useRef<HTMLDivElement>(null);
+
+  // Get current tenant memberships
+  const { data: membershipData } = useQuery(GET_MY_TENANT_MEMBERSHIPS, {
+    skip: !user,
+  });
+
+  const memberships = membershipData?.myTenantMemberships || [];
+  const currentMembership = memberships.find((m: any) => m.tenant.id === (activeTenantId || user?.tenantId)) 
+    || memberships[0];
+
+  const userRole: UserRole = currentMembership?.role || user?.role || 'DRIVER';
 
   // Apollo queries and mutations
   const [logoutUser] = useMutation(LOGOUT_USER);
@@ -448,6 +182,18 @@ const CombinedNavBar: React.FC = () => {
     });
     return () => ctx.revert();
   }, [location.pathname]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (switcherRef.current && !switcherRef.current.contains(event.target as Node)) {
+        setCompanyDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -564,6 +310,64 @@ const CombinedNavBar: React.FC = () => {
         {/* Right Side Tools (Notifications, Language switcher, Dropdown) */}
         <div className="flex items-center gap-4">
           
+          {/* Company Switcher Dropdown */}
+          {memberships.length > 0 && (
+            <div className="relative" ref={switcherRef}>
+              <button
+                onClick={() => setCompanyDropdownOpen((p) => !p)}
+                className="flex items-center gap-2 p-1.5 px-3.5 rounded-full border border-white/10 hover:border-orange-500/50 glass text-xs font-bold transition-all text-white/80 hover:text-white"
+              >
+                <Building2 size={13} className="text-orange-500" />
+                <span className="max-w-[120px] truncate">
+                  {currentMembership?.tenant?.name || 'Select Company'}
+                </span>
+                <span className="text-[9px] text-white/40 uppercase tracking-widest px-1 bg-white/5 rounded-md font-extrabold">
+                  {currentMembership?.role?.replace('_', ' ') || 'DRIVER'}
+                </span>
+              </button>
+              {companyDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-64 glass border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 text-xs animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="px-4 py-2.5 border-b border-white/5 bg-black/10">
+                    <p className="text-[9px] text-white/40 uppercase font-bold tracking-widest">Switch Logistics Carrier</p>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {memberships.map((membership: any) => {
+                      const isActive = (activeTenantId || user?.tenantId) === membership.tenant.id;
+                      return (
+                        <button
+                          key={membership.id || membership.tenant.id}
+                          onClick={() => {
+                            setActiveTenantId(membership.tenant.id);
+                            setCompanyDropdownOpen(false);
+                            toast.success(`Switched active context to ${membership.tenant.name}`);
+                          }}
+                          className={`w-full text-left px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5 last:border-0 ${
+                            isActive ? 'bg-orange-500/10 text-orange-500 font-bold' : 'text-white/80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            {membership.tenant.logoUrl ? (
+                              <img src={membership.tenant.logoUrl} className="w-5 h-5 rounded object-cover" alt="" />
+                            ) : (
+                              <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[10px] font-bold text-white">
+                                {membership.tenant.name[0]}
+                              </div>
+                            )}
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-xs leading-none">{membership.tenant.name}</span>
+                              <span className="text-[8px] text-white/40 mt-1 uppercase font-bold tracking-wider">{membership.role?.replace('_', ' ')}</span>
+                            </div>
+                          </div>
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Language Switcher */}
           <div className="hidden sm:flex p-0.5 rounded-full glass border border-white/10 text-[10px] font-bold uppercase w-fit gap-1">
             {['en', 'sw', 'fr'].map((lang) => (
@@ -577,6 +381,23 @@ const CombinedNavBar: React.FC = () => {
                 }`}
               >
                 {lang}
+              </button>
+            ))}
+          </div>
+
+          {/* Currency Switcher */}
+          <div className="hidden md:flex p-0.5 rounded-full glass border border-white/10 text-[10px] font-bold uppercase w-fit gap-1">
+            {['KES', 'USD', 'EUR', 'UGX'].map((curr) => (
+              <button
+                key={curr}
+                onClick={() => setCurrency(curr)}
+                className={`px-2.5 py-1 rounded-full uppercase transition-all ${
+                  currency === curr
+                    ? 'btn-primary text-white font-extrabold'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                {curr}
               </button>
             ))}
           </div>
@@ -685,9 +506,11 @@ const CombinedNavBar: React.FC = () => {
           <Routes>
             <Route index element={
               userRole === 'DRIVER' ? (
-                <DriverDashboardView />
+                <DriverDashboard />
               ) : userRole === 'CUSTOMER' ? (
-                <CustomerDashboardView />
+                <CustomerDashboard />
+              ) : userRole === 'TENANT_ADMIN' ? (
+                <TenantDashboard />
               ) : (
                 <DefaultDashboardView role={userRole} />
               )

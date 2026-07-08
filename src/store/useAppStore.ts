@@ -25,6 +25,7 @@ interface AppState {
   // Theme & Language
   theme: Theme;
   language: Language;
+  currency: string;
   
   // UI
   isSidebarOpen: boolean;
@@ -32,6 +33,7 @@ interface AppState {
   
   // Tenant
   tenantTheme: Record<string, string> | null;
+  activeTenantId: string | null;
   
   // Actions
   setUser: (user: User | null) => void;
@@ -40,8 +42,10 @@ interface AppState {
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   setLanguage: (lang: Language) => void;
+  setCurrency: (curr: string) => void;
   setSidebarOpen: (open: boolean) => void;
   setTenantTheme: (theme: Record<string, string>) => void;
+  setActiveTenantId: (tenantId: string | null) => void;
   setNotifications: (count: number) => void;
 }
 
@@ -54,13 +58,15 @@ export const useAppStore = create<AppState>()(
       isAuthenticated: false,
       theme: 'dark',
       language: 'en',
+      currency: 'KES',
       isSidebarOpen: true,
       notifications: 0,
       tenantTheme: null,
+      activeTenantId: null,
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setTokens: (access, refresh) => set({ accessToken: access, refreshToken: refresh }),
-      logout: () => set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false }),
+      logout: () => set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, activeTenantId: null }),
       setTheme: (theme) => {
         set({ theme });
         document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -71,8 +77,10 @@ export const useAppStore = create<AppState>()(
         document.documentElement.classList.toggle('dark', next === 'dark');
       },
       setLanguage: (language) => set({ language }),
+      setCurrency: (currency) => set({ currency }),
       setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
       setTenantTheme: (tenantTheme) => set({ tenantTheme }),
+      setActiveTenantId: (activeTenantId) => set({ activeTenantId }),
       setNotifications: (notifications) => set({ notifications }),
     }),
     {
@@ -80,10 +88,12 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         theme: state.theme,
         language: state.language,
+        currency: state.currency,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        activeTenantId: state.activeTenantId,
       }),
     }
   )
