@@ -82,6 +82,7 @@ class Job(models.Model):
     deadline = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=JobStatus.choices, default=JobStatus.OPEN)
     
+    customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="customer_jobs")
     assigned_driver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_jobs")
     assigned_truck = models.ForeignKey(Truck, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_jobs")
     assigned_container = models.ForeignKey(Container, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_jobs")

@@ -138,15 +138,15 @@ class AuthMutation:
             phone_number=input.phone_number or "",
             role=UserRole.CUSTOMER,   # ← Always CUSTOMER for self-registration
             preferred_language=input.preferred_language or "en",
-            is_verified=False,
+            is_verified=True,
         )
 
-        # Create and send verification email
-        _send_verification_email(user)
+        # Skip verification email for now
+        # _send_verification_email(user)
 
         return MessageType(
             success=True,
-            message="Registration successful. Please check your email to verify your account.",
+            message="Registration successful. You can now log in.",
         )
 
     @strawberry.mutation
@@ -356,6 +356,52 @@ class AuthMutation:
 
 # ─── Helper functions ─────────────────────────────────────────────────────────
 
+def _get_html_template(title: str, name: str, body_html: str, cta_html: str = "") -> str:
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>{title}</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #0f172a; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #f8fafc; -webkit-font-smoothing: antialiased;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; padding: 40px 20px;">
+        <tr>
+          <td align="center">
+            <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
+              <tr>
+                <td style="background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); padding: 30px; text-align: center;">
+                  <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">Tarxemo Logistics</h1>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 40px;">
+                  <h2 style="margin-top: 0; color: #ffffff; font-size: 20px; font-weight: 700;">{title}</h2>
+                  <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin-bottom: 16px;">Hi {name},</p>
+                  <div style="color: #cbd5e1; font-size: 15px; line-height: 1.6;">
+                    {body_html}
+                  </div>
+                  
+                  {cta_html}
+                  
+                  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.05); text-align: center;">
+                    <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0;">
+                      &copy; 2026 Tarxemo Logistics Inc. All rights reserved.<br>
+                      Nairobi-Dar es Salaam Highway Corridors.<br>
+                      If you didn't request this email, you can safely ignore it.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+    """
+
 def _send_verification_email(user: User):
     from django.core.mail import send_mail
     from django.conf import settings
@@ -365,11 +411,28 @@ def _send_verification_email(user: User):
         expires_at=timezone.now() + timedelta(hours=24),
     )
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={token.token}"
+    
+    html_message = _get_html_template(
+        title="Verify your Tarxemo Account",
+        name=user.first_name,
+        body_html="<p>Welcome to Tarxemo Logistics! To fully activate your account and access all our services, please verify your email address by clicking the secure button below.</p><p>This link is uniquely generated for your account and will expire in 24 hours.</p>",
+        cta_html=f"""
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <a href="{verify_url}" style="display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.3);">Verify My Account</a>
+            </td>
+          </tr>
+        </table>
+        """
+    )
+    
     send_mail(
         subject="Verify your Tarxemo account",
         message=f"Hi {user.first_name},\n\nClick the link to verify your email:\n{verify_url}\n\nThis link expires in 24 hours.",
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
+        html_message=html_message,
         fail_silently=True,
     )
 
@@ -383,22 +446,59 @@ def _send_password_reset_email(user: User, request):
         expires_at=timezone.now() + timedelta(hours=1),
         requester_ip=request.META.get("REMOTE_ADDR", ""),
     )
+    
+    html_message = _get_html_template(
+        title="Secure Password Reset",
+        name=user.first_name,
+        body_html="<p>We received a request to recover your Tarxemo Logistics platform password. Please use the security OTP code below to establish a new password credential.</p><p>For your security, this code will automatically expire in 1 hour. Do not share this token with anyone.</p>",
+        cta_html=f"""
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <div style="padding: 20px; background-color: rgba(234, 88, 12, 0.1); border: 1px solid rgba(234, 88, 12, 0.2); border-radius: 12px; display: inline-block;">
+                <p style="margin: 0; color: #ea580c; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;">Security OTP Code</p>
+                <p style="margin: 10px 0 0; color: #ea580c; font-size: 36px; font-weight: 900; letter-spacing: 8px;">{token.token}</p>
+              </div>
+            </td>
+          </tr>
+        </table>
+        """
+    )
+    
     send_mail(
         subject="Your Tarxemo Password Reset OTP",
         message=f"Hi {user.first_name},\n\nYou requested a password reset. Here is your 6-digit OTP code:\n\n{token.token}\n\nThis code expires in 1 hour. If you didn't request this, ignore this email.",
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
+        html_message=html_message,
         fail_silently=True,
     )
 
 
 def _send_invite_email(user: User, temp_password: str):
     from django.core.mail import send_mail
-    from django.conf import settings
+    login_url = f"{settings.FRONTEND_URL}/login"
+    
+    html_message = _get_html_template(
+        title="Welcome to Tarxemo Logistics",
+        name=user.first_name,
+        body_html=f"<p>An administrator has created a secure account for you on the Tarxemo Logistics platform.</p><p><strong>Your Email:</strong> {user.email}<br><strong>Temporary Password:</strong> {temp_password}</p><p>Please log in immediately and update your password to secure your account.</p>",
+        cta_html=f"""
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <a href="{login_url}" style="display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.3);">Login to Platform</a>
+            </td>
+          </tr>
+        </table>
+        """
+    )
+    
     send_mail(
         subject="You've been invited to Tarxemo Logistics",
-        message=f"Hi {user.first_name},\n\nAn admin has created an account for you on Tarxemo Logistics.\n\nEmail: {user.email}\nTemporary Password: {temp_password}\n\nPlease log in and change your password immediately:\n{settings.FRONTEND_URL}/login",
+        message=f"Hi {user.first_name},\n\nAn admin has created an account for you on Tarxemo Logistics.\n\nEmail: {user.email}\nTemporary Password: {temp_password}\n\nPlease log in and change your password immediately:\n{login_url}",
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
+        html_message=html_message,
         fail_silently=True,
     )

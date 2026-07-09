@@ -1,7 +1,7 @@
 import strawberry
 from decimal import Decimal
 from strawberry.types import Info
-from .models import Quote, PricingMatrix
+from .models import Quote, PricingMatrix, QuoteStatus
 from .inputs import RequestQuoteInput
 from .outputs import RequestQuoteResponse
 
@@ -53,5 +53,64 @@ class PricingMutation:
         return RequestQuoteResponse(
             success=True,
             message="Your freight shipping quote has been estimated successfully.",
+            quote=quote
+        )
+
+    @strawberry.mutation
+    def book_quote(self, info: Info, quote_id: str) -> RequestQuoteResponse:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            return RequestQuoteResponse(
+                success=False,
+                message="Authentication required."
+            )
+
+        try:
+            quote = Quote.objects.get(id=quote_id, customer=user)
+        except Quote.DoesNotExist:
+            return RequestQuoteResponse(
+                success=False,
+                message="Quote not found."
+            )
+
+        if quote.status != QuoteStatus.PENDING:
+            return RequestQuoteResponse(
+                success=False,
+                message=f"Quote has already been processed (Status: {quote.status})."
+            )
+
+        quote.status = QuoteStatus.APPROVED
+        quote.save()
+
+        # Create Job
+        from apps.logistics.models import Job, JobStatus, JobType
+        job = Job.objects.create(
+            tenant=quote.tenant,
+            customer=user,
+            title=f"Freight Cargo: {quote.container_type} shipment",
+            description=f"Corridor shipment of {quote.weight_tons} tons of cargo. Cargo Details: {quote.cargo_details or 'N/A'}",
+            location=f"{quote.pickup_location} to {quote.delivery_location}",
+            job_type=JobType.CONTRACT,
+            salary_min=quote.estimated_price,
+            salary_max=quote.estimated_price,
+            status=JobStatus.CONFIRMED
+        )
+
+        # Create Invoice
+        from apps.payments.models import Invoice, InvoiceStatus
+        from datetime import date, timedelta
+        due_date = date.today() + timedelta(days=14)
+        Invoice.objects.create(
+            tenant=quote.tenant,
+            trip=job,
+            customer=user,
+            amount=quote.estimated_price,
+            status=InvoiceStatus.UNPAID,
+            due_date=due_date
+        )
+
+        return RequestQuoteResponse(
+            success=True,
+            message="Quote accepted and corridor trip booked successfully! Invoice generated.",
             quote=quote
         )

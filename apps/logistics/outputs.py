@@ -4,6 +4,7 @@ from typing import List, Optional
 from strawberry import auto
 from .models import Truck, Container, Job, JobApplication
 from apps.tenants.outputs import TenantType
+from apps.authentication.outputs import UserType
 
 @strawberry_django.type(Truck)
 class TruckType:
@@ -56,6 +57,7 @@ class JobType:
     deadline: auto
     status: auto
     posted_at: auto
+    customer: Optional[UserType]
 
     @strawberry.field
     def company(self) -> TenantType:
@@ -79,3 +81,19 @@ class ApplyForJobResponse:
     success: bool
     message: str
     application: Optional[JobApplicationType] = None
+
+@strawberry.type
+class CustomerDashboardShipmentType:
+    id: str
+    tracking_number: str
+    status: str
+    pickup: str
+    delivery: str
+    estimated_delivery: str
+
+@strawberry.type
+class CustomerDashboardType:
+    active_shipments: int
+    total_shipments: int
+    pending_quotes: int
+    recent_shipments: List[CustomerDashboardShipmentType]

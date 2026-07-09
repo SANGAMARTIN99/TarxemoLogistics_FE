@@ -3,7 +3,8 @@ from typing import Optional, List
 from strawberry.types import Info
 from django.db.models import Q
 from .models import Job, Truck, Container
-from .outputs import JobType, JobPaginatedResponse, TruckType, ContainerType
+from .outputs import JobType, JobPaginatedResponse, TruckType, ContainerType, CustomerDashboardType, CustomerDashboardShipmentType
+from apps.pricing.models import Quote
 
 @strawberry.type
 class LogisticsQuery:
@@ -78,3 +79,39 @@ class LogisticsQuery:
             return []
             
         return list(Container.objects.filter(tenant=tenant))
+
+    @strawberry.field
+    def customer_dashboard(self, info: Info) -> CustomerDashboardType:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+
+        # Compute stats for customer user
+        active_shipments_count = Job.objects.filter(customer=user, status__in=["CONFIRMED", "IN_TRANSIT"]).count()
+        total_shipments_count = Job.objects.filter(customer=user).count()
+        pending_quotes_count = Quote.objects.filter(customer=user, status="PENDING").count()
+
+        # Format recent shipments
+        recent_jobs = Job.objects.filter(customer=user).order_by("-posted_at")[:5]
+        recent_shipments = []
+        for job in recent_jobs:
+            pickup = job.location.split(" to ")[0] if " to " in job.location else job.location
+            delivery = job.location.split(" to ")[1] if " to " in job.location else job.location
+            tracking_num = f"TRX-{str(job.id)[:8].upper()}"
+            recent_shipments.append(
+                CustomerDashboardShipmentType(
+                    id=str(job.id),
+                    tracking_number=tracking_num,
+                    status=job.status,
+                    pickup=pickup,
+                    delivery=delivery,
+                    estimated_delivery=str(job.deadline) if job.deadline else "2026-08-12"
+                )
+            )
+
+        return CustomerDashboardType(
+            active_shipments=active_shipments_count,
+            total_shipments=total_shipments_count,
+            pending_quotes=pending_quotes_count,
+            recent_shipments=recent_shipments
+        )
