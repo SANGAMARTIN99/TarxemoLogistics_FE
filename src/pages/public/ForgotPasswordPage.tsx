@@ -5,7 +5,7 @@ import { useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
   Mail, KeyRound, Lock, ArrowLeft, ArrowRight,
-  Send, Flame, MailOpen, Eye, EyeOff
+  Send, Eye, EyeOff
 } from 'lucide-react';
 
 import { REQUEST_PASSWORD_RESET, VERIFY_OTP, RESET_PASSWORD } from '../../api/mutations';
@@ -29,7 +29,6 @@ const ForgotPasswordPage: React.FC = () => {
 
   // Verification codes/tokens
   const [resetToken, setResetToken] = useState('');
-  const [mockOtpCode, setMockOtpCode] = useState('284719'); // Simulated OTP sent to email
 
   // Timer states
   const [countdown, setCountdown] = useState(120); // 2 minutes
@@ -87,8 +86,6 @@ const ForgotPasswordPage: React.FC = () => {
   const handleResendOtp = async () => {
     if (!canResend) return;
     try {
-      const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setMockOtpCode(generatedCode);
       setCountdown(120);
       setCanResend(false);
 
@@ -99,7 +96,7 @@ const ForgotPasswordPage: React.FC = () => {
         toast.error('Unable to request OTP code. Check connection.');
       }
     } catch {
-      toast.success('Simulated: Code resent successfully!');
+      toast.error('Failed to resend OTP code.');
     }
   };
 

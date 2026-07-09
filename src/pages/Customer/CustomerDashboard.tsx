@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
@@ -12,92 +13,34 @@ import { convertAndFormatCurrency } from '../../utils/currency';
 import toast from 'react-hot-toast';
 
 // ─── GraphQL Queries & Mutations ─────────────────────────────────────────────
-import { gql } from '@apollo/client';
-
-const GET_CUSTOMER_DASHBOARD = gql`
-  query GetCustomerDashboard {
-    customerDashboard {
-      activeShipments
-      totalShipments
-      pendingQuotes
-      recentShipments {
-        id
-        trackingNumber
-        status
-        pickup
-        delivery
-        estimatedDelivery
-      }
-    }
-  }
-`;
-
-const REQUEST_QUOTE = gql`
-  mutation RequestQuote($input: RequestQuoteInput!) {
-    requestQuote(input: $input) {
-      success
-      message
-      quote {
-        id
-        pickupLocation
-        deliveryLocation
-        weightTons
-        containerType
-        cargoDetails
-        estimatedPrice
-        status
-        createdAt
-      }
-    }
-  }
-`;
-
-const GET_CUSTOMER_QUOTES = gql`
-  query GetCustomerQuotes {
-    quotes {
-      id
-      pickupLocation
-      deliveryLocation
-      weightTons
-      containerType
-      cargoDetails
-      estimatedPrice
-      status
-      createdAt
-    }
-  }
-`;
-
-const GET_CUSTOMER_INVOICES = gql`
-  query GetCustomerInvoices {
-    invoices {
-      id
-      amount
-      status
-      dueDate
-      createdAt
-    }
-  }
-`;
-
-const PROCESS_PAYMENT = gql`
-  mutation ProcessPayment($input: ProcessPaymentInput!) {
-    processPayment(input: $input) {
-      id
-      transactionId
-      paymentMethod
-      amount
-      timestamp
-    }
-  }
-`;
+import {
+  GET_CUSTOMER_DASHBOARD,
+  GET_CUSTOMER_QUOTES,
+  GET_CUSTOMER_INVOICES
+} from '../../api/queries';
+import {
+  REQUEST_QUOTE,
+  BOOK_QUOTE,
+  PROCESS_PAYMENT
+} from '../../api/mutations';
 
 const CustomerDashboard: React.FC = () => {
   const { currency } = useAppStore();
   const dashboardRef = useRef<HTMLDivElement>(null);
 
+  const location = useLocation();
   // Tabs: 'shipments', 'quotes', 'invoices'
   const [activeTab, setActiveTab] = useState<'shipments' | 'quotes' | 'invoices'>('shipments');
+
+  useEffect(() => {
+    if (location.pathname.endsWith('/quotes')) {
+      setActiveTab('quotes');
+    } else if (location.pathname.endsWith('/invoices')) {
+      setActiveTab('invoices');
+    } else {
+      setActiveTab('shipments');
+    }
+  }, [location.pathname]);
 
   // Selected Detail Modal states
   const [selectedQuote, setSelectedQuote] = useState<any>(null);
@@ -172,6 +115,23 @@ const CustomerDashboard: React.FC = () => {
     },
     onError: (err) => {
       toast.error(err.message || 'Error occurred while contacting carriers.');
+    }
+  });
+
+  const [bookQuote, { loading: bookSubmitting }] = useMutation(BOOK_QUOTE, {
+    onCompleted: (res) => {
+      if (res.bookQuote?.success) {
+        toast.success(res.bookQuote.message);
+        setIsQuoteModalOpen(false);
+        refetchQuotes();
+        refetchInvoices();
+        refetchDash();
+      } else {
+        toast.error(res.bookQuote?.message || 'Failed to book quote.');
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message || 'Error occurred while booking quote.');
     }
   });
 
@@ -373,13 +333,10 @@ const CustomerDashboard: React.FC = () => {
   }
 
   const stats = dashData?.customerDashboard || {
-    activeShipments: 2,
-    totalShipments: 8,
-    pendingQuotes: 1,
-    recentShipments: [
-      { id: '1', trackingNumber: 'TRX-7892182', status: 'IN_TRANSIT', pickup: 'Mombasa Port', delivery: 'Kampala Depot', estimatedDelivery: '2026-07-10' },
-      { id: '2', trackingNumber: 'TRX-9821731', status: 'DELIVERED', pickup: 'Nairobi Yard', delivery: 'Eldoret Terminal', estimatedDelivery: '2026-07-07' }
-    ],
+    activeShipments: 0,
+    totalShipments: 0,
+    pendingQuotes: 0,
+    recentShipments: [],
   };
 
   const quotes = quotesData?.quotes || [];
@@ -861,13 +818,13 @@ const CustomerDashboard: React.FC = () => {
 
               <div className="flex gap-4">
                 <button
+                  disabled={bookSubmitting}
                   onClick={() => {
-                    toast.success('Quote booked successfully! Invoice generated.');
-                    setIsQuoteModalOpen(false);
-                    refetchInvoices();
-                    refetchDash();
+                    if (selectedQuote?.id) {
+                      bookQuote({ variables: { quoteId: selectedQuote.id } });
+                    }
                   }}
-                  className="flex-1 btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider"
+                  className="flex-1 btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider disabled:opacity-50"
                 >
                   Accept & Book Corridor Trip
                 </button>

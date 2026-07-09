@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
-  Building2, Plus, Send, X, RefreshCw, CheckCircle,
-  Activity, Shield, AlertTriangle, Play, RefreshCw as LoopIcon, Check, Settings, Trash
+  Building2, Plus, Send, X, RefreshCw,
+  Activity, Shield, RefreshCw as LoopIcon
 } from 'lucide-react';
-import { useAppStore } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
 
 // ─── GraphQL Queries & Mutations ─────────────────────────────────────────────

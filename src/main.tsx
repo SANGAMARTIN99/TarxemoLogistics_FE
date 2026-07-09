@@ -1,18 +1,24 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
 import { Toaster } from 'react-hot-toast';
 import './index.css';
-import './i18n';
+import i18n from './i18n';
 import App from './App';
 import { apolloClient } from './api/apolloClient';
 import { useAppStore } from './store/useAppStore';
 
 function Root() {
-  const { theme } = useAppStore();
+  const { theme, language } = useAppStore();
+  
   if (theme === 'dark') document.documentElement.classList.add('dark');
   else document.documentElement.classList.remove('dark');
+
+  useEffect(() => {
+    i18n.changeLanguage(language);
+  }, [language]);
+
   return (
     <>
       <App />

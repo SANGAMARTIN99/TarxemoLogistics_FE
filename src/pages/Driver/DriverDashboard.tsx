@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
   Truck, Shield, Star, Award, Clock, MapPin, Send,
   CheckCircle2, AlertTriangle, Play, Pause, RefreshCw,
-  ClipboardList, Briefcase, ChevronRight, Check, X, FileText, CheckCircle
+  ClipboardList, Briefcase, ChevronRight, X, FileText, CheckCircle
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { convertAndFormatCurrency } from '../../utils/currency';
@@ -101,8 +102,15 @@ const DriverDashboard: React.FC = () => {
   const { currency } = useAppStore();
   const driverContainerRef = useRef<HTMLDivElement>(null);
 
+  const location = useLocation();
   // Tabs: 'duty', 'jobs', 'profile', 'earnings'
   const [activeTab, setActiveTab] = useState<'duty' | 'jobs' | 'profile' | 'earnings'>('duty');
+
+  useEffect(() => {
+    if (location.pathname.endsWith('/trips')) {
+      setActiveTab('jobs');
+    }
+  }, [location.pathname]);
 
   // Queries
   const { data: dashData, loading: dashLoading, refetch: refetchDash } = useQuery(GET_DRIVER_DASHBOARD);
@@ -284,7 +292,7 @@ const DriverDashboard: React.FC = () => {
           coverLetter: 'Applying for route cargo transport mission on the corridor.'
         }
       }
-    }).then((res: any) => {
+    }).then(() => {
       toast.success('Mission application submitted to carrier operations manager!');
       setSelectedJob(null);
       refetchJobs();
@@ -304,13 +312,11 @@ const DriverDashboard: React.FC = () => {
   }
 
   const dashboardData = dashData?.driverDashboard || {
-    availableJobs: 8,
-    completedTrips: 18,
-    rating: 4.88,
-    earnings: { thisMonth: 145000, currency: 'KES' },
-    upcomingTrips: [
-      { id: '1', title: 'Corridor Load #1827', pickup: 'Mombasa Port Terminal 4', delivery: 'Kampala Depot Y', date: '2026-07-09', status: 'IN_TRANSIT' }
-    ],
+    availableJobs: 0,
+    completedTrips: 0,
+    rating: 0.0,
+    earnings: { thisMonth: 0, currency: 'KES' },
+    upcomingTrips: [],
   };
 
   const openJobs = openJobsData?.jobs?.items || [];

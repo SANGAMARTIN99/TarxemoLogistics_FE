@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import i18n from '../i18n';
 
 export type UserRole = 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'OPERATIONS_MANAGER' | 'FINANCE_OFFICER' | 'DRIVER' | 'CUSTOMER' | 'VIEWER';
 export type Language = 'en' | 'sw' | 'fr';
@@ -76,7 +77,10 @@ export const useAppStore = create<AppState>()(
         set({ theme: next });
         document.documentElement.classList.toggle('dark', next === 'dark');
       },
-      setLanguage: (language) => set({ language }),
+      setLanguage: (language) => {
+        set({ language });
+        i18n.changeLanguage(language);
+      },
       setCurrency: (currency) => set({ currency }),
       setSidebarOpen: (isSidebarOpen) => set({ isSidebarOpen }),
       setTenantTheme: (tenantTheme) => set({ tenantTheme }),

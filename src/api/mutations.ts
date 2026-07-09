@@ -104,3 +104,49 @@ export const SUBSCRIBE_NEWSLETTER = gql`
     }
   }
 `;
+
+// ─── CUSTOMER DASHBOARD MUTATIONS ──────────────────────────────────────────────
+export const REQUEST_QUOTE = gql`
+  mutation RequestQuote($input: RequestQuoteInput!) {
+    requestQuote(input: $input) {
+      success
+      message
+      quote {
+        id
+        pickupLocation
+        deliveryLocation
+        weightTons
+        containerType
+        cargoDetails
+        estimatedPrice
+        status
+        createdAt
+      }
+    }
+  }
+`;
+
+export const BOOK_QUOTE = gql`
+  mutation BookQuote($quoteId: String!) {
+    bookQuote(quoteId: $quoteId) {
+      success
+      message
+      quote {
+        id
+        status
+      }
+    }
+  }
+`;
+
+export const PROCESS_PAYMENT = gql`
+  mutation ProcessPayment($input: ProcessPaymentInput!) {
+    processPayment(input: $input) {
+      id
+      transactionId
+      paymentMethod
+      amount
+      timestamp
+    }
+  }
+`;

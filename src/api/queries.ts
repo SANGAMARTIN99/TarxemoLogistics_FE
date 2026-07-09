@@ -229,3 +229,31 @@ export const GET_TENANT_THEME = gql`
     }
   }
 `;
+
+export const GET_CUSTOMER_QUOTES = gql`
+  query GetCustomerQuotes {
+    quotes {
+      id
+      pickupLocation
+      deliveryLocation
+      weightTons
+      containerType
+      cargoDetails
+      estimatedPrice
+      status
+      createdAt
+    }
+  }
+`;
+
+export const GET_CUSTOMER_INVOICES = gql`
+  query GetCustomerInvoices {
+    invoices {
+      id
+      amount
+      status
+      dueDate
+      createdAt
+    }
+  }
+`;

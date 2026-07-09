@@ -16,25 +16,25 @@
   --color-primary-dark: #C44708;
   --color-secondary: #FFFFFF;
 
-  /* Neutrals */
-  --color-bg: #F8F9FA;
-  --color-surface: #FFFFFF;
-  --color-surface-2: #F3F4F6;
-  --color-border: rgba(232, 88, 10, 0.15);
-  --color-text: #0F0F1A;
-  --color-text-muted: #6B7280;
-  --color-text-light: #9CA3AF;
+  /* Neutrals (Warm Cream Palette) */
+  --color-bg: #FAF5EB;
+  --color-surface: #FFFDF9;
+  --color-surface-2: #F6EFE2;
+  --color-border: rgba(232, 88, 10, 0.12);
+  --color-text: #1C120C;
+  --color-text-muted: #736254;
+  --color-text-light: #A69282;
 
   /* Glass */
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.35);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --glass-bg: rgba(255, 253, 249, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px rgba(115, 98, 84, 0.06);
   --glass-blur: blur(20px);
 
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, #E8580A 0%, #FF7A2F 100%);
   --gradient-hero: linear-gradient(160deg, #0F0F1A 0%, #1a1018 50%, #200e05 100%);
-  --gradient-card: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%);
+  --gradient-card: linear-gradient(135deg, rgba(255,253,249,0.95) 0%, rgba(255,250,240,0.85) 100%);
 
   /* Shadows */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);

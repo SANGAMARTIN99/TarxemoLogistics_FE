@@ -3,7 +3,7 @@ import { useQuery, useMutation } from '@apollo/client';
 import { gsap } from 'gsap';
 import {
   Truck, Box, Layers, Plus, Send,
-  TrendingUp, X, Check, RefreshCw, Eye, EyeOff, Shield, AlertCircle, Clock, Calendar
+  TrendingUp, X, Check, RefreshCw, Shield, AlertCircle, Clock, Calendar
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { convertAndFormatCurrency } from '../../utils/currency';
