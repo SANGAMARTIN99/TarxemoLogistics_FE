@@ -73,6 +73,10 @@ class Job(models.Model):
     requirements = models.TextField(null=True, blank=True)
     benefits = models.TextField(null=True, blank=True)
     location = models.CharField(max_length=255) # e.g. "Mombasa to Kampala"
+    pickup_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    pickup_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    delivery_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    delivery_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.CONTRACT)
     salary_min = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     salary_max = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
@@ -123,3 +127,51 @@ class JobApplication(models.Model):
 
     def __str__(self):
         return f"{self.driver.email} -> {self.job.title}"
+
+
+class TicketStatus(models.TextChoices):
+    OPEN = "OPEN", "Open"
+    IN_PROGRESS = "IN_PROGRESS", "In Progress"
+    RESOLVED = "RESOLVED", "Resolved"
+    CLOSED = "CLOSED", "Closed"
+
+
+class TicketPriority(models.TextChoices):
+    LOW = "LOW", "Low"
+    MEDIUM = "MEDIUM", "Medium"
+    HIGH = "HIGH", "High"
+    CRITICAL = "CRITICAL", "Critical"
+
+
+class SupportTicket(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="support_tickets")
+    subject = models.CharField(max_length=150)
+    category = models.CharField(max_length=100)
+    priority = models.CharField(max_length=20, choices=TicketPriority.choices, default=TicketPriority.MEDIUM)
+    status = models.CharField(max_length=20, choices=TicketStatus.choices, default=TicketStatus.OPEN)
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "logistics_support_ticket"
+
+    def __str__(self):
+        return f"Ticket {self.id} - {self.subject}"
+
+
+class SupportTicketResponse(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket = models.ForeignKey(SupportTicket, on_delete=models.CASCADE, related_name="responses")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    message = models.TextField()
+    is_staff = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "logistics_support_ticket_response"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"Response {self.id} on Ticket {self.ticket_id}"

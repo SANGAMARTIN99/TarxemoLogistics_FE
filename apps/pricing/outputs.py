@@ -9,6 +9,10 @@ class QuoteType:
     id: auto
     pickup_location: auto
     delivery_location: auto
+    pickup_lat: auto
+    pickup_lng: auto
+    delivery_lat: auto
+    delivery_lng: auto
     weight_tons: auto
     container_type: auto
     cargo_details: auto

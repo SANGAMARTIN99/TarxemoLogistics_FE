@@ -22,11 +22,15 @@ class PaymentsMutation:
         if user.role != "SUPER_ADMIN" and user.role != "TENANT_ADMIN" and invoice.customer != user:
             raise Exception("Permission denied.")
 
+        import uuid
+        tx_id = input.transaction_id or f"TXN-{uuid.uuid4().hex[:12].upper()}"
+        payment_amount = Decimal(str(input.amount)) if input.amount is not None else invoice.amount
+
         payment = Payment.objects.create(
             invoice=invoice,
-            transaction_id=input.transaction_id,
+            transaction_id=tx_id,
             payment_method=input.payment_method,
-            amount=Decimal(input.amount)
+            amount=payment_amount
         )
 
         # Update invoice status if paid in full

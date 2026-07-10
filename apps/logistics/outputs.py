@@ -2,7 +2,7 @@ import strawberry
 import strawberry_django
 from typing import List, Optional
 from strawberry import auto
-from .models import Truck, Container, Job, JobApplication
+from .models import Truck, Container, Job, JobApplication, SupportTicket, SupportTicketResponse
 from apps.tenants.outputs import TenantType
 from apps.authentication.outputs import UserType
 
@@ -68,6 +68,46 @@ class JobType:
     def applicants_count(self) -> int:
         return self.applications.count()
 
+    @strawberry.field
+    def tracking_number(self) -> str:
+        return f"TRX-{str(self.id)[:8].upper()}"
+
+    @strawberry.field
+    def pickup(self) -> str:
+        return self.location.split(" to ")[0] if " to " in self.location else self.location
+
+    @strawberry.field
+    def delivery(self) -> str:
+        return self.location.split(" to ")[1] if " to " in self.location else self.location
+
+    @strawberry.field
+    def estimated_delivery(self) -> str:
+        return str(self.deadline) if self.deadline else "2026-08-12"
+
+    @strawberry.field
+    def actual_delivery(self) -> str:
+        return str(self.updated_at.date()) if self.status == "DELIVERED" else ""
+
+    @strawberry.field
+    def weight_tons(self) -> float:
+        return 12.5
+
+    @strawberry.field
+    def container_type(self) -> str:
+        return self.assigned_container.container_type if self.assigned_container else "40FT"
+
+    @strawberry.field
+    def amount(self) -> float:
+        return float(self.salary_min or 4500000)
+
+    @strawberry.field
+    def created_at(self) -> str:
+        return self.posted_at.isoformat()
+
+    @strawberry.field
+    def tenant(self) -> Optional[TenantType]:
+        return self.tenant
+
 @strawberry.type
 class JobPaginatedResponse:
     items: List[JobType]
@@ -119,3 +159,27 @@ class LogisticsManagerDashboardType:
     active_tenants_count: int
     active_logs: List[LogisticsManagerLogType]
     pricing: LogisticsManagerPricingType
+
+
+@strawberry_django.type(SupportTicketResponse)
+class SupportTicketResponseType:
+    id: auto
+    message: auto
+    is_staff: auto
+    created_at: auto
+
+
+@strawberry_django.type(SupportTicket)
+class SupportTicketType:
+    id: auto
+    subject: auto
+    category: auto
+    priority: auto
+    status: auto
+    description: auto
+    created_at: auto
+    updated_at: auto
+
+    @strawberry.field
+    def responses(self) -> List[SupportTicketResponseType]:
+        return list(self.responses.all())

@@ -2,11 +2,12 @@ import strawberry
 from typing import Optional, List
 from strawberry.types import Info
 from django.db.models import Q
-from .models import Job, Truck, Container
+from .models import Job, Truck, Container, SupportTicket
 from .outputs import (
     JobType, JobPaginatedResponse, TruckType, ContainerType, 
     CustomerDashboardType, CustomerDashboardShipmentType,
-    LogisticsManagerDashboardType, LogisticsManagerLogType, LogisticsManagerPricingType
+    LogisticsManagerDashboardType, LogisticsManagerLogType, LogisticsManagerPricingType,
+    SupportTicketType
 )
 from apps.pricing.models import Quote, PricingMatrix
 from apps.tracking.models import LocationLog
@@ -214,4 +215,51 @@ class LogisticsQuery:
             active_tenants_count=active_tenants_count,
             active_logs=active_logs,
             pricing=pricing
+        )
+
+    @strawberry.field
+    def support_tickets(self, info: Info) -> List[SupportTicketType]:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        return list(SupportTicket.objects.filter(customer=user).order_by("-created_at"))
+
+    @strawberry.field
+    def support_ticket(self, info: Info, id: str) -> Optional[SupportTicketType]:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        try:
+            return SupportTicket.objects.get(id=id, customer=user)
+        except SupportTicket.DoesNotExist:
+            return None
+
+    @strawberry.field
+    def customer_shipments(
+        self,
+        info: Info,
+        status: Optional[str] = None,
+        page: Optional[int] = 1,
+        page_size: Optional[int] = 10
+    ) -> JobPaginatedResponse:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+
+        queryset = Job.objects.filter(customer=user).order_by("-posted_at")
+
+        if status and status != "ALL":
+            queryset = queryset.filter(status=status)
+
+        total_count = queryset.count()
+        offset = (page - 1) * page_size
+        items = list(queryset[offset:offset + page_size])
+        has_next_page = offset + page_size < total_count
+
+        return JobPaginatedResponse(
+            items=items,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            has_next_page=has_next_page
         )

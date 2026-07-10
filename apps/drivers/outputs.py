@@ -37,3 +37,4 @@ class DriverDashboardType:
     rating: float
     earnings: DriverEarningsType
     upcoming_trips: List[DriverTripType]
+    past_trips: List[DriverTripType]

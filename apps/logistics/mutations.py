@@ -1,8 +1,11 @@
 import strawberry
 from strawberry.types import Info
-from .models import Truck, Container, Job, JobApplication
+from .models import Truck, Container, Job, JobApplication, SupportTicket, SupportTicketResponse
 from .inputs import CreateTruckInput, CreateContainerInput, CreateJobInput, JobApplicationInput
-from .outputs import TruckType, ContainerType, JobType, ApplyForJobResponse, JobApplicationType
+from .outputs import (
+    TruckType, ContainerType, JobType, ApplyForJobResponse, JobApplicationType,
+    SupportTicketType, SupportTicketResponseType
+)
 
 @strawberry.type
 class LogisticsMutation:
@@ -112,3 +115,37 @@ class LogisticsMutation:
             message="Application submitted successfully. Our carriers will reach out to you shortly.",
             application=application
         )
+
+    @strawberry.mutation
+    def create_support_ticket(self, info: Info, subject: str, description: str, category: str, priority: str) -> SupportTicketType:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        ticket = SupportTicket.objects.create(
+            customer=user,
+            subject=subject,
+            description=description,
+            category=category,
+            priority=priority
+        )
+        return ticket
+
+    @strawberry.mutation
+    def create_support_ticket_response(self, info: Info, ticket_id: str, message: str) -> SupportTicketResponseType:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        try:
+            ticket = SupportTicket.objects.get(id=ticket_id)
+        except SupportTicket.DoesNotExist:
+            raise Exception("Ticket not found.")
+            
+        is_staff = user.role in ("SUPER_ADMIN", "TENANT_ADMIN", "OPERATIONS_MANAGER")
+        
+        response = SupportTicketResponse.objects.create(
+            ticket=ticket,
+            sender=user,
+            message=message,
+            is_staff=is_staff
+        )
+        return response

@@ -31,6 +31,20 @@ class DriversQuery:
                 )
             )
 
+        # Format past trips
+        past_trips = []
+        for job in assigned_jobs.filter(status="DELIVERED"):
+            past_trips.append(
+                DriverTripType(
+                    id=str(job.id),
+                    title=job.title,
+                    pickup=job.location.split(" to ")[0] if " to " in job.location else job.location,
+                    delivery=job.location.split(" to ")[1] if " to " in job.location else job.location,
+                    date=str(job.deadline) if job.deadline else "2026-08-12",
+                    status=job.status
+                )
+            )
+
         # Get driver rating
         rating = 5.0
         if hasattr(user, "driver_profile"):
@@ -50,5 +64,6 @@ class DriversQuery:
             completed_trips=completed_trips_count,
             rating=rating,
             earnings=earnings,
-            upcoming_trips=upcoming_trips
+            upcoming_trips=upcoming_trips,
+            past_trips=past_trips
         )
