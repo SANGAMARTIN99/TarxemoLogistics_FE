@@ -184,6 +184,14 @@ export const GET_DRIVER_DASHBOARD = gql`
         date
         status
       }
+      past_trips {
+        id
+        title
+        pickup
+        delivery
+        date
+        status
+      }
     }
   }
 `;
@@ -244,6 +252,10 @@ export const GET_CUSTOMER_QUOTES = gql`
       id
       pickupLocation
       deliveryLocation
+      pickupLat
+      pickupLng
+      deliveryLat
+      deliveryLng
       weightTons
       containerType
       cargoDetails

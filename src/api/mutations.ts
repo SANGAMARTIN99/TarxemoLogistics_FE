@@ -115,6 +115,10 @@ export const REQUEST_QUOTE = gql`
         id
         pickupLocation
         deliveryLocation
+        pickupLat
+        pickupLng
+        deliveryLat
+        deliveryLng
         weightTons
         containerType
         cargoDetails
@@ -228,5 +232,30 @@ export const UPDATE_PRICING_MATRIX = gql`
       sourceLocation: $sourceLocation
       destinationLocation: $destinationLocation
     )
+  }
+`;
+
+export const CREATE_SUPPORT_TICKET = gql`
+  mutation CreateSupportTicket($subject: String!, $description: String!, $category: String!, $priority: String!) {
+    createSupportTicket(subject: $subject, description: $description, category: $category, priority: $priority) {
+      id
+      subject
+      description
+      status
+      priority
+      category
+      createdAt
+    }
+  }
+`;
+
+export const CREATE_SUPPORT_TICKET_RESPONSE = gql`
+  mutation CreateSupportTicketResponse($ticketId: String!, $message: String!) {
+    createSupportTicketResponse(ticketId: $ticketId, message: $message) {
+      id
+      message
+      isStaff
+      createdAt
+    }
   }
 `;

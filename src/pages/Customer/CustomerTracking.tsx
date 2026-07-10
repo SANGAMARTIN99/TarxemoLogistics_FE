@@ -7,8 +7,10 @@ import {
   MapPin, Navigation, Truck, CheckCircle2, Clock, Circle,
   Map, List, Search, ArrowLeft, AlertTriangle, Phone, Star
 } from 'lucide-react';
+import { useQuery } from '@apollo/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
+import { GET_CUSTOMER_SHIPMENTS, GET_SHIPMENT_TRACKING } from '../../api/queries';
 
 // Fix Leaflet default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -34,26 +36,7 @@ const checkpointIcon = (passed: boolean) => L.divIcon({
   iconAnchor: [9, 9],
 });
 
-// Simulated Tanzania corridor: Dar es Salaam → Dodoma → Iringa → Mbeya
-const DEMO_MILESTONES = [
-  { id: '1', location: 'Dar es Salaam Port', lat: -6.8160, lng: 39.2803, status: 'PASSED', description: 'Cargo loaded and dispatched', estimatedTime: '2026-07-10 06:00', actualTime: '2026-07-10 06:45' },
-  { id: '2', location: 'Morogoro Checkpoint', lat: -6.8219, lng: 37.6618, status: 'PASSED', description: 'Checkpoint cleared, all documents verified', estimatedTime: '2026-07-10 10:00', actualTime: '2026-07-10 10:20' },
-  { id: '3', location: 'Dodoma Junction', lat: -6.1722, lng: 35.7395, status: 'CURRENT', description: 'Truck currently at Dodoma fuel station', estimatedTime: '2026-07-10 14:00', actualTime: '2026-07-10 14:30' },
-  { id: '4', location: 'Iringa Weighbridge', lat: -7.7700, lng: 35.6926, status: 'PENDING', description: 'Vehicle weight verification checkpoint', estimatedTime: '2026-07-10 18:00', actualTime: null },
-  { id: '5', location: 'Mbeya Terminal', lat: -8.9000, lng: 33.4600, status: 'PENDING', description: 'Final destination — unloading dock', estimatedTime: '2026-07-11 08:00', actualTime: null },
-];
 
-const DEMO_TRACKING = {
-  trackingNumber: 'TRX-A4F2E891',
-  status: 'IN_TRANSIT',
-  pickup: 'Dar es Salaam Port',
-  delivery: 'Mbeya Terminal',
-  estimatedDelivery: '2026-07-11',
-  currentLat: -6.1722,
-  currentLng: 35.7395,
-  currentLocation: 'Dodoma Junction, Tanzania',
-  driver: { firstName: 'James', lastName: 'Mwangi', phone: '+255 712 345 678', rating: 4.8, vehiclePlate: 'T 123 ABC' },
-};
 
 function MapCenterFly({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
@@ -68,8 +51,34 @@ const CustomerTracking: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<'map' | 'progress'>('map');
   const [searchTrk, setSearchTrk] = useState('');
-  const tracking = DEMO_TRACKING;
-  const milestones = DEMO_MILESTONES;
+
+  const [activeId, setActiveId] = useState<string | null>(id || null);
+
+  useEffect(() => {
+    if (id) {
+      setActiveId(id);
+    }
+  }, [id]);
+
+  const { data: shipmentsData } = useQuery(GET_CUSTOMER_SHIPMENTS, {
+    skip: !!activeId,
+    variables: { pageSize: 1 },
+  });
+
+  useEffect(() => {
+    if (!activeId && shipmentsData?.customerShipments?.items?.length > 0) {
+      setActiveId(shipmentsData.customerShipments.items[0].id);
+    }
+  }, [shipmentsData, activeId]);
+
+  const { data: trackingData, loading } = useQuery(GET_SHIPMENT_TRACKING, {
+    skip: !activeId,
+    variables: { shipmentId: activeId || "" },
+    pollInterval: 10000,
+  });
+
+  const tracking = trackingData?.shipmentTracking || null;
+  const milestones = tracking?.milestones || [];
 
   useEffect(() => {
     if (containerRef.current) {
@@ -77,9 +86,33 @@ const CustomerTracking: React.FC = () => {
     }
   }, []);
 
-  const passedCount = milestones.filter(m => m.status === 'PASSED').length;
-  const progress = Math.round((passedCount / (milestones.length - 1)) * 100);
-  const routeCoords: [number, number][] = milestones.map(m => [m.lat, m.lng]);
+  if (loading && !tracking) {
+    return (
+      <div className="min-h-[400px] flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-[var(--color-text-muted)] text-xs">Locating cargo GPS signals...</p>
+      </div>
+    );
+  }
+
+  if (!tracking) {
+    return (
+      <div className="glass border border-[var(--color-border)] rounded-2xl p-12 text-center max-w-md mx-auto">
+        <AlertTriangle className="text-orange-500 mx-auto mb-4" size={40} />
+        <h3 className="font-bold text-[var(--color-text)]">No Active Shipment Tracking</h3>
+        <p className="text-[var(--color-text-muted)] text-xs mt-2">
+          We could not find any active shipment assigned to this account or matching the identifier.
+        </p>
+        <button onClick={() => navigate('/dashboard/shipments')} className="mt-6 px-4 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold hover:bg-orange-600 transition-colors">
+          Go to Shipments
+        </button>
+      </div>
+    );
+  }
+
+  const passedCount = milestones.filter((m: any) => m.status === 'PASSED').length;
+  const progress = milestones.length > 1 ? Math.round((passedCount / (milestones.length - 1)) * 100) : 0;
+  const routeCoords: [number, number][] = milestones.map((m: any) => [m.lat, m.lng]);
 
   return (
     <div ref={containerRef} className="space-y-6">
@@ -154,7 +187,7 @@ const CustomerTracking: React.FC = () => {
                 {/* Route polyline */}
                 <Polyline positions={routeCoords} color="#E8580A" weight={3} dashArray="8 4" opacity={0.7} />
                 {/* Milestones */}
-                {milestones.map((m) => (
+                {milestones.map((m: any) => (
                   <Marker key={m.id} position={[m.lat, m.lng]}
                     icon={m.status === 'CURRENT' ? truckIcon : checkpointIcon(m.status === 'PASSED')}>
                     <Popup>
@@ -183,7 +216,7 @@ const CustomerTracking: React.FC = () => {
                   style={{ height: `${progress}%` }} />
 
                 <div className="space-y-0">
-                  {milestones.map((milestone, idx) => {
+                  {milestones.map((milestone: any, idx: number) => {
                     const isPassed = milestone.status === 'PASSED';
                     const isCurrent = milestone.status === 'CURRENT';
                     const isPending = milestone.status === 'PENDING';
@@ -298,7 +331,7 @@ const CustomerTracking: React.FC = () => {
             {[
               { label: 'Status', value: 'In Transit' },
               { label: 'Est. Delivery', value: tracking.estimatedDelivery },
-              { label: 'Stops Remaining', value: `${milestones.filter(m => m.status === 'PENDING').length} of ${milestones.length}` },
+              { label: 'Stops Remaining', value: `${milestones.filter((m: any) => m.status === 'PENDING').length} of ${milestones.length}` },
             ].map(item => (
               <div key={item.label} className="flex items-center justify-between text-xs">
                 <span className="text-[var(--color-text-muted)]">{item.label}</span>

@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
+import { GET_CUSTOMER_SUPPORT_TICKETS } from '../../api/queries';
+import { CREATE_SUPPORT_TICKET, CREATE_SUPPORT_TICKET_RESPONSE } from '../../api/mutations';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   OPEN:        { label: 'Open',        color: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/20' },
@@ -22,13 +24,6 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
 };
 const CATEGORIES = ['Shipment Issue', 'Payment Problem', 'Quote Request', 'Driver Complaint', 'Damage Report', 'Delay Notification', 'Lost Cargo', 'Other'];
 
-// Demo tickets (will be replaced by real GraphQL data once backend endpoint is ready)
-const DEMO_TICKETS = [
-  { id: 'tkt-001', subject: 'Delay in Mbeya shipment', description: 'My cargo has been delayed at Iringa checkpoint for over 6 hours.', status: 'OPEN', priority: 'HIGH', category: 'Delay Notification', createdAt: '2026-07-09T10:00:00Z', responses: [{ id: 'r1', message: 'We are looking into this immediately.', isStaff: true, createdAt: '2026-07-09T11:00:00Z' }] },
-  { id: 'tkt-002', subject: 'Invoice payment not reflecting', description: 'I paid via M-Pesa but the invoice still shows unpaid.', status: 'IN_PROGRESS', priority: 'HIGH', category: 'Payment Problem', createdAt: '2026-07-08T08:30:00Z', responses: [] },
-  { id: 'tkt-003', subject: 'Driver was rude', description: 'The assigned driver was unprofessional during pickup at Dar es Salaam port.', status: 'RESOLVED', priority: 'MEDIUM', category: 'Driver Complaint', createdAt: '2026-07-06T14:00:00Z', responses: [{ id: 'r2', message: 'We have addressed this with the driver and management. Apologies for the experience.', isStaff: true, createdAt: '2026-07-07T09:00:00Z' }] },
-];
-
 const PAGE_SIZE = 5;
 
 const CustomerSupport: React.FC = () => {
@@ -39,22 +34,67 @@ const CustomerSupport: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [formData, setFormData] = useState({ subject: '', description: '', category: CATEGORIES[0], priority: 'MEDIUM' });
 
-  const tickets = DEMO_TICKETS;
-  const totalPages = Math.ceil(tickets.length / PAGE_SIZE);
-  const paginated = tickets.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const { data, loading, refetch } = useQuery(GET_CUSTOMER_SUPPORT_TICKETS, {
+    variables: { page, pageSize: PAGE_SIZE },
+    fetchPolicy: 'network-only'
+  });
+
+  const tickets = data?.supportTickets?.items || [];
+  const totalCount = data?.supportTickets?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const paginated = tickets; // API handles pagination on backend side
+
+  const activeTicket = selectedTicket
+    ? tickets.find((t: any) => t.id === selectedTicket.id) || selectedTicket
+    : null;
+
+  const [createTicket] = useMutation(CREATE_SUPPORT_TICKET, {
+    onCompleted: () => {
+      toast.success('Support ticket created successfully!');
+      setShowCreate(false);
+      setFormData({ subject: '', description: '', category: CATEGORIES[0], priority: 'MEDIUM' });
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message || 'Failed to create ticket');
+    }
+  });
+
+  const [replyTicket] = useMutation(CREATE_SUPPORT_TICKET_RESPONSE, {
+    onCompleted: () => {
+      toast.success('Reply sent!');
+      setNewMessage('');
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message || 'Failed to send reply');
+    }
+  });
 
   const handleCreateTicket = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.subject.trim() || !formData.description.trim()) { toast.error('Please fill all fields'); return; }
-    toast.success('Support ticket created! Our team will respond within 2 hours.');
-    setShowCreate(false);
-    setFormData({ subject: '', description: '', category: CATEGORIES[0], priority: 'MEDIUM' });
+    if (!formData.subject.trim() || !formData.description.trim()) {
+      toast.error('Please fill all fields');
+      return;
+    }
+    createTicket({
+      variables: {
+        subject: formData.subject,
+        description: formData.description,
+        category: formData.category,
+        priority: formData.priority
+      }
+    });
   };
 
   const handleSendReply = () => {
-    if (!newMessage.trim()) return;
-    toast.success('Reply sent!');
-    setNewMessage('');
+    if (!newMessage.trim() || !activeTicket) return;
+    replyTicket({
+      variables: {
+        ticketId: activeTicket.id,
+        message: newMessage
+      }
+    });
   };
 
   useEffect(() => {
@@ -85,7 +125,7 @@ const CustomerSupport: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {(['OPEN','IN_PROGRESS','RESOLVED','CLOSED'] as const).map(s => {
           const cfg = STATUS_CONFIG[s];
-          const count = tickets.filter(t => t.status === s).length;
+          const count = tickets.filter((t: any) => t.status === s).length;
           return (
             <div key={s} className={`glass border rounded-2xl p-4 ${cfg.bg}`}>
               <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">{cfg.label}</p>
@@ -97,7 +137,7 @@ const CustomerSupport: React.FC = () => {
 
       {/* Tickets list */}
       <div className="space-y-3">
-        {paginated.map(ticket => {
+        {paginated.map((ticket: any) => {
           const statusCfg = STATUS_CONFIG[ticket.status] ?? STATUS_CONFIG['OPEN'];
           const priCfg = PRIORITY_CONFIG[ticket.priority] ?? PRIORITY_CONFIG['MEDIUM'];
           return (
@@ -169,28 +209,28 @@ const CustomerSupport: React.FC = () => {
       )}
 
       {/* Ticket Detail Modal */}
-      {selectedTicket && (
+      {activeTicket && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="glass border border-[var(--color-border)] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
               <div>
-                <p className="font-mono text-[10px] text-[var(--color-text-muted)]">#{selectedTicket.id.toUpperCase()}</p>
-                <h3 className="font-bold text-[var(--color-text)]">{selectedTicket.subject}</h3>
+                <p className="font-mono text-[10px] text-[var(--color-text-muted)]">#{activeTicket.id.toUpperCase()}</p>
+                <h3 className="font-bold text-[var(--color-text)]">{activeTicket.subject}</h3>
               </div>
               <button onClick={() => setSelectedTicket(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><X size={18} /></button>
             </div>
             <div className="p-6 space-y-4">
               <div className="p-4 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)]">
-                <p className="text-xs text-[var(--color-text)]">{selectedTicket.description}</p>
+                <p className="text-xs text-[var(--color-text)]">{activeTicket.description}</p>
               </div>
-              {selectedTicket.responses.map((r: any) => (
+              {activeTicket.responses.map((r: any) => (
                 <div key={r.id} className={`p-4 rounded-xl border text-xs ${r.isStaff ? 'bg-orange-500/5 border-orange-500/20 ml-4' : 'bg-[var(--color-surface-2)] border-[var(--color-border)] mr-4'}`}>
                   <p className={`font-bold mb-1 ${r.isStaff ? 'text-orange-400' : 'text-[var(--color-text)]'}`}>{r.isStaff ? '🎧 Support Team' : '👤 You'}</p>
                   <p className="text-[var(--color-text)]">{r.message}</p>
                   <p className="text-[9px] text-[var(--color-text-muted)] mt-2">{new Date(r.createdAt).toLocaleString()}</p>
                 </div>
               ))}
-              {selectedTicket.status !== 'CLOSED' && selectedTicket.status !== 'RESOLVED' && (
+              {activeTicket.status !== 'CLOSED' && activeTicket.status !== 'RESOLVED' && (
                 <div className="flex gap-3">
                   <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type your reply..."
                     className="flex-1 px-4 py-2.5 bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-xl text-sm text-[var(--color-text)] focus:outline-none focus:border-orange-500/50" />

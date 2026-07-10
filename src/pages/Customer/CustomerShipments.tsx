@@ -8,7 +8,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
-import { GET_CUSTOMER_DASHBOARD } from '../../api/queries';
+import { GET_CUSTOMER_SHIPMENTS } from '../../api/queries';
 import { convertAndFormatCurrency } from '../../utils/currency';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType; bg: string }> = {
@@ -32,10 +32,13 @@ const CustomerShipments: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [page, setPage] = useState(1);
 
-  const { data, loading } = useQuery(GET_CUSTOMER_DASHBOARD);
-  const allShipments: any[] = data?.customerDashboard?.recentShipments || [];
+  const { data, loading } = useQuery(GET_CUSTOMER_SHIPMENTS, {
+    variables: { pageSize: 200 },
+    fetchPolicy: 'network-only'
+  });
+  const allShipments: any[] = data?.customerShipments?.items || [];
 
-  // Client-side filter & paginate (backend query will handle this properly once schema extended)
+  // Client-side filter & paginate
   const filtered = allShipments.filter((s: any) => {
     const matchesSearch = !search ||
       s.trackingNumber?.toLowerCase().includes(search.toLowerCase()) ||

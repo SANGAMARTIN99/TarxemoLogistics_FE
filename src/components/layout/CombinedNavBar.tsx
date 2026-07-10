@@ -25,6 +25,11 @@ import CustomerInvoices from '../../pages/Customer/CustomerInvoices';
 import CustomerSupport from '../../pages/Customer/CustomerSupport';
 import CustomerProfile from '../../pages/Customer/CustomerProfile';
 import DriverDashboard from '../../pages/Driver/DriverDashboard';
+import DriverTrips from '../../pages/Driver/DriverTrips';
+import DriverTripHistory from '../../pages/Driver/DriverTripHistory';
+import DriverEarnings from '../../pages/Driver/DriverEarnings';
+import DriverRatings from '../../pages/Driver/DriverRatings';
+import DriverProfile from '../../pages/Driver/DriverProfile';
 import TenantDashboard from '../../pages/TenantAdmin/TenantDashboard';
 import SuperAdminDashboard from '../../pages/SuperAdmin/SuperAdminDashboard';
 
@@ -488,9 +493,12 @@ const CombinedNavBar: React.FC = () => {
                 <Route path="invoices" element={<CustomerInvoices />} />
                 <Route path="history" element={<CustomerHistory />} />
                 <Route path="support" element={<CustomerSupport />} />
-                <Route path="profile" element={<CustomerProfile />} />
+                <Route path="profile" element={userRole === 'DRIVER' ? <DriverProfile /> : <CustomerProfile />} />
                 {/* Driver Routes */}
-                <Route path="trips" element={<DriverDashboard />} />
+                <Route path="trips" element={<DriverTrips />} />
+                <Route path="trip-history" element={<DriverTripHistory />} />
+                <Route path="earnings" element={<DriverEarnings />} />
+                <Route path="ratings" element={<DriverRatings />} />
                 {/* Tenant Routes */}
                 <Route path="fleet" element={<TenantDashboard />} />
                 <Route path="jobs" element={<TenantDashboard />} />

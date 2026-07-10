@@ -82,6 +82,10 @@ const CustomerDashboard: React.FC = () => {
   const [quoteForm, setQuoteForm] = useState({
     pickupLocation: '',
     deliveryLocation: '',
+    pickupLat: null as number | null,
+    pickupLng: null as number | null,
+    deliveryLat: null as number | null,
+    deliveryLng: null as number | null,
     weightTons: '',
     containerType: '20FT',
     cargoDetails: '',
@@ -89,6 +93,78 @@ const CustomerDashboard: React.FC = () => {
     isHazmat: false,
     isExpress: false,
   });
+
+  // Suggestions states
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([]);
+  const [deliverySuggestions, setDeliverySuggestions] = useState<any[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState({ pickup: false, delivery: false });
+
+  const fetchSuggestions = async (query: string, type: 'pickup' | 'delivery') => {
+    if (query.trim().length < 3) {
+      if (type === 'pickup') setPickupSuggestions([]);
+      else setDeliverySuggestions([]);
+      return;
+    }
+
+    setLoadingSuggestions(prev => ({ ...prev, [type]: true }));
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query + ' East Africa'
+        )}&addressdetails=1&limit=5`,
+        {
+          headers: {
+            'Accept-Language': 'en',
+            'User-Agent': 'TarxemoLogistics/1.0',
+          },
+        }
+      );
+      const data = await response.json();
+      if (type === 'pickup') {
+        setPickupSuggestions(data);
+      } else {
+        setDeliverySuggestions(data);
+      }
+    } catch (err) {
+      console.error('Error fetching suggestions:', err);
+    } finally {
+      setLoadingSuggestions(prev => ({ ...prev, [type]: false }));
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchSuggestions(quoteForm.pickupLocation, 'pickup');
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [quoteForm.pickupLocation]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchSuggestions(quoteForm.deliveryLocation, 'delivery');
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [quoteForm.deliveryLocation]);
+
+  const selectPickup = (s: any) => {
+    setQuoteForm(prev => ({
+      ...prev,
+      pickupLocation: s.display_name,
+      pickupLat: parseFloat(s.lat),
+      pickupLng: parseFloat(s.lon),
+    }));
+    setPickupSuggestions([]);
+  };
+
+  const selectDelivery = (s: any) => {
+    setQuoteForm(prev => ({
+      ...prev,
+      deliveryLocation: s.display_name,
+      deliveryLat: parseFloat(s.lat),
+      deliveryLng: parseFloat(s.lon),
+    }));
+    setDeliverySuggestions([]);
+  };
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -100,6 +176,10 @@ const CustomerDashboard: React.FC = () => {
         setQuoteForm({
           pickupLocation: '',
           deliveryLocation: '',
+          pickupLat: null,
+          pickupLng: null,
+          deliveryLat: null,
+          deliveryLng: null,
           weightTons: '',
           containerType: '20FT',
           cargoDetails: '',
@@ -202,6 +282,10 @@ const CustomerDashboard: React.FC = () => {
         input: {
           pickupLocation: quoteForm.pickupLocation.trim(),
           deliveryLocation: quoteForm.deliveryLocation.trim(),
+          pickupLat: quoteForm.pickupLat,
+          pickupLng: quoteForm.pickupLng,
+          deliveryLat: quoteForm.deliveryLat,
+          deliveryLng: quoteForm.deliveryLng,
           weightTons: parseFloat(quoteForm.weightTons),
           containerType: quoteForm.containerType,
           cargoDetails: quoteForm.cargoDetails.trim() + 
@@ -637,9 +721,26 @@ const CustomerDashboard: React.FC = () => {
                   value={quoteForm.pickupLocation}
                   onChange={(e) => setQuoteForm({ ...quoteForm, pickupLocation: e.target.value })}
                   placeholder="e.g. Mombasa Port"
-                  className="input-field pl-10 text-xs"
+                  className="input-field pl-10 pr-8 text-xs"
                   required
                 />
+                {loadingSuggestions.pickup && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 border border-orange-500 border-t-transparent rounded-full animate-spin" />
+                )}
+                {pickupSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 mt-1 bg-[var(--color-surface)] backdrop-blur-md border border-[var(--color-border)] rounded-xl shadow-2xl z-50 overflow-hidden max-h-48 overflow-y-auto">
+                    {pickupSuggestions.map((s, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => selectPickup(s)}
+                        className="w-full text-left px-4 py-2.5 text-[10px] text-[var(--color-text)] hover:bg-orange-500/10 hover:text-orange-400 border-b border-[var(--color-border)]/50 last:border-0 transition-all truncate"
+                      >
+                        📍 {s.display_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {formErrors.pickupLocation && (
                 <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.pickupLocation}</span>
@@ -655,9 +756,26 @@ const CustomerDashboard: React.FC = () => {
                   value={quoteForm.deliveryLocation}
                   onChange={(e) => setQuoteForm({ ...quoteForm, deliveryLocation: e.target.value })}
                   placeholder="e.g. Kampala Depot"
-                  className="input-field pl-10 text-xs"
+                  className="input-field pl-10 pr-8 text-xs"
                   required
                 />
+                {loadingSuggestions.delivery && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 border border-orange-500 border-t-transparent rounded-full animate-spin" />
+                )}
+                {deliverySuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 mt-1 bg-[var(--color-surface)] backdrop-blur-md border border-[var(--color-border)] rounded-xl shadow-2xl z-50 overflow-hidden max-h-48 overflow-y-auto">
+                    {deliverySuggestions.map((s, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => selectDelivery(s)}
+                        className="w-full text-left px-4 py-2.5 text-[10px] text-[var(--color-text)] hover:bg-orange-500/10 hover:text-orange-400 border-b border-[var(--color-border)]/50 last:border-0 transition-all truncate"
+                      >
+                        📍 {s.display_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {formErrors.deliveryLocation && (
                 <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.deliveryLocation}</span>

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store/useAppStore';
-import { GET_CUSTOMER_DASHBOARD } from '../../api/queries';
+import { GET_CUSTOMER_SHIPMENTS } from '../../api/queries';
 import { convertAndFormatCurrency } from '../../utils/currency';
 
 const PAGE_SIZE = 8;
@@ -19,29 +19,23 @@ const CustomerHistory: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [ratingFilter, setRatingFilter] = useState<string>('ALL');
 
-  const { data, loading } = useQuery(GET_CUSTOMER_DASHBOARD);
-  const allShipments: any[] = data?.customerDashboard?.recentShipments || [];
-
-  // Show only delivered/completed shipments
-  const completed = allShipments.filter((s: any) =>
-    s.status === 'DELIVERED' || s.status === 'COMPLETED'
-  );
-
-  const filtered = completed.filter((s: any) => {
-    return !search ||
-      s.trackingNumber?.toLowerCase().includes(search.toLowerCase()) ||
-      s.pickup?.toLowerCase().includes(search.toLowerCase()) ||
-      s.delivery?.toLowerCase().includes(search.toLowerCase());
+  const { data, loading } = useQuery(GET_CUSTOMER_SHIPMENTS, {
+    variables: {
+      status: 'DELIVERED',
+      page,
+      pageSize: PAGE_SIZE,
+    },
+    fetchPolicy: 'network-only',
   });
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const completed = data?.customerShipments?.items || [];
+  const totalCount = data?.customerShipments?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // Metrics
   const totalSpend = completed.reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
-  const avgRating = 4.7;
+  const avgRating = 4.8;
 
   useEffect(() => {
     if (containerRef.current) {
@@ -107,7 +101,7 @@ const CustomerHistory: React.FC = () => {
         <div className="glass border border-[var(--color-border)] rounded-2xl p-12 flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : paginated.length === 0 ? (
+      ) : completed.length === 0 ? (
         <div className="glass border border-[var(--color-border)] rounded-2xl p-16 text-center">
           <History size={40} className="text-[var(--color-text-muted)] mx-auto mb-4 opacity-40" />
           <p className="text-[var(--color-text)] font-bold">No completed shipments yet</p>
@@ -125,7 +119,7 @@ const CustomerHistory: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {paginated.map((shipment: any, i: number) => (
+                {completed.map((shipment: any, i: number) => (
                   <tr
                     key={shipment.id}
                     className="border-b border-[var(--color-border)]/50 hover:bg-[var(--color-surface-2)]/30 transition-colors"
@@ -180,7 +174,7 @@ const CustomerHistory: React.FC = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--color-border)] bg-[var(--color-surface-2)]/30">
               <p className="text-[10px] text-[var(--color-text-muted)]">
-                Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
               </p>
               <div className="flex items-center gap-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
