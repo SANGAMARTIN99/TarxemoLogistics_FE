@@ -17,18 +17,18 @@
   --color-secondary: #FFFFFF;
 
   /* Neutrals (Warm Cream Palette) */
-  --color-bg: #FAF5EB;
-  --color-surface: #FFFDF9;
-  --color-surface-2: #F6EFE2;
-  --color-border: rgba(232, 88, 10, 0.12);
-  --color-text: #1C120C;
-  --color-text-muted: #736254;
-  --color-text-light: #A69282;
+  --color-bg: #F3ECE0;
+  --color-surface: #FAF4E8;
+  --color-surface-2: #EADFCF;
+  --color-border: rgba(232, 88, 10, 0.16);
+  --color-text: #1F140E;
+  --color-text-muted: #5F5044;
+  --color-text-light: #8E7C6F;
 
   /* Glass */
-  --glass-bg: rgba(255, 253, 249, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-shadow: 0 8px 32px rgba(115, 98, 84, 0.06);
+  --glass-bg: rgba(250, 244, 232, 0.82);
+  --glass-border: rgba(232, 88, 10, 0.18);
+  --glass-shadow: 0 8px 32px rgba(95, 80, 68, 0.08);
   --glass-blur: blur(20px);
 
   /* Gradients */

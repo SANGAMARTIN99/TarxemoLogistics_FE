@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client';
+import { useTranslation } from 'react-i18next';
 import { gsap } from 'gsap';
 import {
   Truck, Shield, Star, Award, Clock, MapPin, Send,
@@ -12,94 +13,19 @@ import { convertAndFormatCurrency } from '../../utils/currency';
 import toast from 'react-hot-toast';
 
 // ─── GraphQL Queries & Mutations ─────────────────────────────────────────────
-import { gql } from '@apollo/client';
-
-const GET_DRIVER_DASHBOARD = gql`
-  query GetDriverDashboard {
-    driverDashboard {
-      availableJobs
-      completedTrips
-      rating
-      earnings {
-        thisMonth
-        currency
-      }
-      upcomingTrips {
-        id
-        title
-        pickup
-        delivery
-        date
-        status
-      }
-    }
-  }
-`;
-
-const LOG_LOCATION = gql`
-  mutation LogLocation($input: LogLocationInput!) {
-    logLocation(input: $input) {
-      success
-      message
-      locationLog {
-        id
-        latitude
-        longitude
-        notes
-        timestamp
-      }
-    }
-  }
-`;
-
-const UPDATE_DRIVER_PROFILE = gql`
-  mutation UpdateDriverProfile($input: DriverProfileInput!) {
-    updateDriverProfile(input: $input) {
-      success
-      message
-      profile {
-        licenseClass
-        licenseNumber
-        yearsExperience
-        phoneNumber
-      }
-    }
-  }
-`;
-
-const GET_OPEN_JOBS = gql`
-  query GetOpenJobs($search: String, $page: Int, $pageSize: Int) {
-    jobs(search: $search, page: $page, pageSize: $pageSize, status: "OPEN") {
-      items {
-        id
-        title
-        location
-        jobType
-        salaryMin
-        salaryMax
-        currency
-        licenseClass
-        deadline
-        description
-        company {
-          name
-        }
-      }
-    }
-  }
-`;
-
-const APPLY_FOR_JOB = gql`
-  mutation ApplyForJob($input: JobApplicationInput!) {
-    applyForJob(input: $input) {
-      success
-      message
-    }
-  }
-`;
+import {
+  GET_DRIVER_DASHBOARD,
+  GET_JOBS as GET_OPEN_JOBS
+} from '../../api/queries';
+import {
+  LOG_LOCATION,
+  UPDATE_DRIVER_PROFILE,
+  APPLY_FOR_JOB
+} from '../../api/mutations';
 
 const DriverDashboard: React.FC = () => {
-  const { currency } = useAppStore();
+  const { t } = useTranslation();
+  const { currency, user, setUser } = useAppStore();
   const driverContainerRef = useRef<HTMLDivElement>(null);
 
   const location = useLocation();
@@ -115,16 +41,28 @@ const DriverDashboard: React.FC = () => {
   // Queries
   const { data: dashData, loading: dashLoading, refetch: refetchDash } = useQuery(GET_DRIVER_DASHBOARD);
   const { data: openJobsData, refetch: refetchJobs } = useQuery(GET_OPEN_JOBS, {
-    variables: { search: '', page: 1, pageSize: 15 }
+    variables: { search: '', page: 1, pageSize: 15, status: 'OPEN' }
   });
 
   // Profile fields state
   const [profileForm, setProfileForm] = useState({
-    licenseClass: 'CLASS A',
-    licenseNumber: 'DL-98273615',
-    yearsExperience: '6',
-    phoneNumber: '+254700000000',
+    licenseClass: '',
+    licenseNumber: '',
+    yearsExperience: '',
+    phoneNumber: '',
   });
+
+  // Sync profile fields with store user
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        licenseClass: user.driverProfile?.licenseClass || 'CLASS A',
+        licenseNumber: user.driverProfile?.licenseNumber || 'DL-98273615',
+        yearsExperience: String(user.driverProfile?.experienceYears || '6'),
+        phoneNumber: user.phone || '+254700000000',
+      });
+    }
+  }, [user]);
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isProfileEditing, setIsProfileEditing] = useState(false);
@@ -132,12 +70,18 @@ const DriverDashboard: React.FC = () => {
   // Mutations
   const [updateProfile, { loading: profileSubmitting }] = useMutation(UPDATE_DRIVER_PROFILE, {
     onCompleted: (res) => {
-      if (res.updateDriverProfile?.success) {
-        toast.success(res.updateDriverProfile.message);
+      if (res.updateDriverProfile) {
+        toast.success('Driver credentials updated successfully.');
         setIsProfileEditing(false);
+        if (user) {
+          setUser({
+            ...user,
+            driverProfile: res.updateDriverProfile
+          });
+        }
         refetchDash();
       } else {
-        toast.error(res.updateDriverProfile?.message || 'Failed to update credentials.');
+        toast.error('Failed to update credentials.');
       }
     },
     onError: (err) => {
@@ -165,7 +109,7 @@ const DriverDashboard: React.FC = () => {
   useEffect(() => {
     let interval: any;
     if (isDutyActive) {
-      toast.success('Duty active! Real-time GPS coordinates broadcasting started.');
+      toast.success(t('driver.dutyActiveToast'));
       interval = setInterval(() => {
         // Drift coordinates slightly towards Kampala
         setCurrentCoords((prev) => {
@@ -176,10 +120,11 @@ const DriverDashboard: React.FC = () => {
           logLocation({
             variables: {
               input: {
-                tripId: '1', // Mock Active Trip ID
+                tripId: dashData?.driverDashboard?.upcomingTrips?.[0]?.id || '1',
                 latitude: parseFloat(nextLat.toFixed(5)),
                 longitude: parseFloat(nextLng.toFixed(5)),
-                notes: `Automated telemetry ping. Index: ${gpsLogCount + 1}.`,
+                speedKph: 55.0,
+                heading: 90.0,
               }
             }
           }).catch(() => {});
@@ -190,12 +135,12 @@ const DriverDashboard: React.FC = () => {
       }, 12000); // Trigger every 12 seconds
     } else {
       if (gpsLogCount > 0) {
-        toast.error('Duty paused. GPS coordinates dispatch suspended.');
+        toast.error(t('driver.dutyPausedToast'));
       }
     }
 
     return () => clearInterval(interval);
-  }, [isDutyActive]);
+  }, [isDutyActive, dashData]);
 
   // Entrance animations
   useEffect(() => {
@@ -250,8 +195,7 @@ const DriverDashboard: React.FC = () => {
         input: {
           licenseClass: profileForm.licenseClass.trim().toUpperCase(),
           licenseNumber: profileForm.licenseNumber.trim(),
-          yearsExperience: parseInt(profileForm.yearsExperience),
-          phoneNumber: profileForm.phoneNumber.trim(),
+          experienceYears: parseInt(profileForm.yearsExperience),
         }
       }
     });
@@ -265,10 +209,11 @@ const DriverDashboard: React.FC = () => {
     logLocation({
       variables: {
         input: {
-          tripId: '1',
+          tripId: dashData?.driverDashboard?.upcomingTrips?.[0]?.id || '1',
           latitude: currentCoords.lat,
           longitude: currentCoords.lng,
-          notes: `[CHECK-IN: ${customLogType}] ${customLogText.trim()}`,
+          speedKph: 0.0,
+          heading: 0.0,
         }
       }
     }).then(() => {
@@ -293,7 +238,7 @@ const DriverDashboard: React.FC = () => {
         }
       }
     }).then(() => {
-      toast.success('Mission application submitted to carrier operations manager!');
+      toast.success(t('driver.appliedSuccess'));
       setSelectedJob(null);
       refetchJobs();
       refetchDash();
@@ -306,7 +251,7 @@ const DriverDashboard: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <RefreshCw size={24} className="text-orange-500 animate-spin" />
-        <p className="text-white/40 text-xs uppercase font-semibold tracking-wider">Syncing driver telemetry...</p>
+        <p className="text-[var(--color-text-light)] text-xs uppercase font-semibold tracking-wider">{t('common.loading')}</p>
       </div>
     );
   }
@@ -321,15 +266,22 @@ const DriverDashboard: React.FC = () => {
 
   const openJobs = openJobsData?.jobs?.items || [];
 
+  const tabLabels: Record<string, string> = {
+    duty: t('driver.activeCorridorTrip'),
+    jobs: t('driver.openMissions'),
+    profile: t('driver.licenseDetails'),
+    earnings: t('driver.monthlyPayouts'),
+  };
+
   return (
     <div ref={driverContainerRef} className="space-y-8 w-full">
       {/* Driver Dashboard Title Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[var(--color-border)] pb-6">
         <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-            Driver <span className="text-orange-500">Dispatch Portal</span>
+          <h2 className="text-2xl font-black text-[var(--color-text)] uppercase tracking-tight flex items-center gap-2">
+            Driver <span className="text-orange-500">{t('driver.portalTitle').split(' ').slice(1).join(' ') || 'Portal'}</span>
           </h2>
-          <p className="text-white/40 text-xs mt-1">Simulate live corridors, update licenses, and review trip payouts.</p>
+          <p className="text-[var(--color-text-muted)] text-xs mt-1">{t('driver.portalSubtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -343,12 +295,12 @@ const DriverDashboard: React.FC = () => {
             {isDutyActive ? (
               <>
                 <Pause size={12} />
-                <span>Go Off-Duty</span>
+                <span>{t('driver.goOffDuty')}</span>
               </>
             ) : (
               <>
                 <Play size={12} />
-                <span>Go On-Duty</span>
+                <span>{t('driver.goOnDuty')}</span>
               </>
             )}
           </button>
@@ -358,7 +310,7 @@ const DriverDashboard: React.FC = () => {
               refetchJobs();
               toast.success('Telemetry and assigned manifests re-synced!');
             }}
-            className="p-2.5 rounded-full border border-white/10 hover:border-orange-500/50 glass text-white/60 hover:text-white transition-all"
+            className="p-2.5 rounded-full border border-[var(--color-border)] hover:border-orange-500/50 glass text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-all"
           >
             <RefreshCw size={14} />
           </button>
@@ -368,17 +320,17 @@ const DriverDashboard: React.FC = () => {
       {/* Metric widgets */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Carrier Rating', val: `${dashboardData.rating} / 5.0`, icon: Star, color: 'text-yellow-400', border: 'border-l-yellow-500' },
-          { label: 'Completed Cargoes', val: `${dashboardData.completedTrips} Trips`, icon: CheckCircle2, color: 'text-emerald-400', border: 'border-l-emerald-500' },
-          { label: 'Open Opportunities', val: `${dashboardData.availableJobs} Jobs`, icon: Briefcase, color: 'text-orange-400', border: 'border-l-orange-500' },
-          { label: 'Current Month Earnings', val: convertAndFormatCurrency(dashboardData.earnings.thisMonth, currency), icon: Award, color: 'text-indigo-400', border: 'border-l-indigo-500' },
+          { label: t('driver.rating'), val: `${dashboardData.rating} / 5.0`, icon: Star, color: 'text-yellow-400', border: 'border-l-yellow-500' },
+          { label: t('hero.stats.trips'), val: `${dashboardData.completedTrips} Trips`, icon: CheckCircle2, color: 'text-emerald-400', border: 'border-l-emerald-500' },
+          { label: t('driver.availableJobs'), val: `${dashboardData.availableJobs} Jobs`, icon: Briefcase, color: 'text-orange-400', border: 'border-l-orange-500' },
+          { label: t('driver.monthlyPayouts'), val: convertAndFormatCurrency(dashboardData.earnings.thisMonth, currency), icon: Award, color: 'text-indigo-400', border: 'border-l-indigo-500' },
         ].map((c, i) => (
           <div key={i} className={`driver-widget glass p-6 rounded-2xl border-l-4 ${c.border} border-y-0 border-r-0 shadow-lg flex items-center justify-between`}>
             <div className="space-y-1">
-              <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</span>
-              <p className="text-lg font-black text-white">{c.val}</p>
+              <span className="text-[10px] text-[var(--color-text-light)] uppercase font-bold tracking-wider">{c.label}</span>
+              <p className="text-lg font-black text-[var(--color-text)]">{c.val}</p>
             </div>
-            <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+            <div className="p-3 bg-[var(--color-surface-2)] rounded-xl border border-[var(--color-border)]">
               <c.icon size={16} className={c.color} />
             </div>
           </div>
@@ -386,16 +338,16 @@ const DriverDashboard: React.FC = () => {
       </div>
 
       {/* Tab select layout */}
-      <div className="flex border-b border-white/5">
+      <div className="flex border-b border-[var(--color-border)]">
         {(['duty', 'jobs', 'profile', 'earnings'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-6 py-3 text-xs uppercase font-extrabold tracking-wider transition-all relative ${
-              activeTab === tab ? 'text-orange-500' : 'text-white/40 hover:text-white/80'
+              activeTab === tab ? 'text-orange-500' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            <span>{tab}</span>
+            <span>{tabLabels[tab]}</span>
             {activeTab === tab && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500 shadow-glow" />
             )}
@@ -408,48 +360,48 @@ const DriverDashboard: React.FC = () => {
         {/* Main Panel */}
         <div className="lg:col-span-8 space-y-6">
           {activeTab === 'duty' && (
-            <div className="driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-2">
-                  <Truck size={14} className="text-orange-500" /> Active Transit Mission
+            <div className="driver-widget glass border border-[var(--color-border)] p-6 rounded-2xl space-y-6">
+              <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-2">
+                  <Truck size={14} className="text-orange-500" /> {t('driver.activeCorridorTrip')}
                 </h3>
                 <div className="flex items-center gap-2">
                   {isDutyActive && (
                     <button
                       onClick={() => setIsLogModalOpen(true)}
-                      className="btn btn-ghost border border-white/15 text-[9px] px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold"
+                      className="btn btn-ghost border border-[var(--color-border)] text-[9px] px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold text-[var(--color-text)]"
                     >
                       <FileText size={10} />
-                      <span>Report Check-in</span>
+                      <span>{t('driver.reportCheckpoint')}</span>
                     </button>
                   )}
                   {isDutyActive ? (
-                    <span className="badge badge-success text-[8px] animate-pulse">Broadcasting Location</span>
+                    <span className="badge badge-success text-[8px] animate-pulse">{t('driver.broadcastingGps')}</span>
                   ) : (
-                    <span className="badge badge-primary text-[8px]">On-Hold</span>
+                    <span className="badge badge-primary text-[8px]">{t('driver.gpsSuspended')}</span>
                   )}
                 </div>
               </div>
 
               {/* Transit Map Simulator */}
-              <div className="w-full h-56 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden flex flex-col justify-between p-4">
+              <div className="w-full h-56 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] relative overflow-hidden flex flex-col justify-between p-4">
                 <div className="flex justify-between items-start z-10">
                   <div className="space-y-1">
-                    <span className="text-[8px] text-white/40 uppercase font-black">GPS Signal</span>
-                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span className="text-[8px] text-[var(--color-text-light)] uppercase font-black">{t('driver.currentPosition')}</span>
+                    <p className="text-xs font-bold text-[var(--color-text)] flex items-center gap-1.5">
                       <span className={`w-2 h-2 rounded-full ${isDutyActive ? 'bg-emerald-500 animate-ping' : 'bg-red-500'}`} />
                       Lat: {currentCoords.lat.toFixed(5)}, Lng: {currentCoords.lng.toFixed(5)}
                     </p>
                   </div>
-                  <div className="bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-white/5 text-right">
-                    <span className="text-[8px] text-white/40 uppercase font-black">Logs Dispatched</span>
+                  <div className="bg-[var(--color-surface-2)] backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-[var(--color-border)] text-right">
+                    <span className="text-[8px] text-[var(--color-text-light)] uppercase font-black">{t('driver.logsDispatched')}</span>
                     <p className="text-xs font-black text-orange-500">{gpsLogCount} Packets</p>
                   </div>
                 </div>
 
                 {/* SVG Road Map */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 200">
-                  <path d="M 30,170 C 120,30 380,180 470,40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                  <path d="M 30,170 C 120,30 380,180 470,40" fill="none" stroke="var(--color-border)" strokeWidth="8" />
                   <path d="M 30,170 C 120,30 380,180 470,40" fill="none" stroke="#f97316" strokeWidth="2" strokeDasharray="5,5" />
                   
                   {/* Position Dot */}
@@ -468,14 +420,14 @@ const DriverDashboard: React.FC = () => {
                   />
                 </svg>
 
-                <div className="flex justify-between items-end z-10 border-t border-white/5 pt-3 bg-black/10 -mx-4 -mb-4 p-4">
+                <div className="flex justify-between items-end z-10 border-t border-[var(--color-border)] pt-3 bg-[var(--color-surface-2)]/20 -mx-4 -mb-4 p-4">
                   <div className="space-y-0.5 text-left">
-                    <span className="text-[8px] text-white/40 uppercase font-black">Departure Terminal</span>
-                    <p className="text-xs font-bold text-white">Mombasa Port Cargo Terminal</p>
+                    <span className="text-[8px] text-[var(--color-text-light)] uppercase font-black">Departure Terminal</span>
+                    <p className="text-xs font-bold text-[var(--color-text)]">Mombasa Port Cargo Terminal</p>
                   </div>
                   <div className="space-y-0.5 text-right">
-                    <span className="text-[8px] text-white/40 uppercase font-black">Destination Terminal</span>
-                    <p className="text-xs font-bold text-white">Kampala Logistics Depot</p>
+                    <span className="text-[8px] text-[var(--color-text-light)] uppercase font-black">Destination Terminal</span>
+                    <p className="text-xs font-bold text-[var(--color-text)]">Kampala Logistics Depot</p>
                   </div>
                 </div>
               </div>
@@ -483,15 +435,15 @@ const DriverDashboard: React.FC = () => {
               {/* Assigned Jobs List */}
               <div className="space-y-4">
                 {dashboardData.upcomingTrips.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-white/40">No cargo trips assigned. Browse opportunities in the Jobs panel.</div>
+                  <div className="p-8 text-center text-xs text-[var(--color-text-light)]">{t('driver.noActiveTrip')}</div>
                 ) : (
                   dashboardData.upcomingTrips.map((trip: any) => (
-                    <div key={trip.id} className="p-5 rounded-xl bg-white/5 border border-white/5 space-y-4 hover:border-white/10 transition-all">
+                    <div key={trip.id} className="p-5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] space-y-4 hover:border-orange-500/20 transition-all">
                       <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-white uppercase">{trip.title}</span>
+                        <span className="text-xs font-bold text-[var(--color-text)] uppercase">{trip.title}</span>
                         <span className="badge badge-primary text-[8px] uppercase">{trip.status}</span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-white/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-[var(--color-text-muted)]">
                         <div className="flex items-center gap-2">
                           <MapPin size={12} className="text-orange-500" />
                           <span>Pickup: <strong>{trip.pickup}</strong></span>
@@ -513,34 +465,34 @@ const DriverDashboard: React.FC = () => {
           )}
 
           {activeTab === 'jobs' && (
-            <div className="driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1.5">
-                  <Briefcase size={14} className="text-orange-500" /> Public Opportunity Marketplace
+            <div className="driver-widget glass border border-[var(--color-border)] p-6 rounded-2xl space-y-6">
+              <div className="border-b border-[var(--color-border)] pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-1.5">
+                  <Briefcase size={14} className="text-orange-500" /> {t('driver.openMissions')}
                 </h3>
-                <p className="text-[10px] text-white/40 mt-1">Browse and apply for cargo runs across major logistics corridors.</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1">{t('driver.portalSubtitle')}</p>
               </div>
 
               <div className="space-y-4">
                 {openJobs.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-white/40">No open transport opportunities resolved. Check back later.</div>
+                  <div className="p-8 text-center text-xs text-[var(--color-text-light)]">{t('driver.noMissions')}</div>
                 ) : (
                   openJobs.map((job: any) => (
                     <div
                       key={job.id}
                       onClick={() => setSelectedJob(job)}
-                      className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-orange-500/30 transition-all flex justify-between items-center gap-4 cursor-pointer"
+                      className="p-4 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)] hover:border-orange-500/30 transition-all flex justify-between items-center gap-4 cursor-pointer"
                     >
                       <div className="space-y-1">
-                        <h4 className="text-xs font-bold text-white uppercase">{job.title}</h4>
-                        <p className="text-[10px] text-white/50">{job.company?.name} • {job.location}</p>
-                        <span className="badge bg-white/5 text-[8px] border-white/5 uppercase">{job.licenseClass} Required</span>
+                        <h4 className="text-xs font-bold text-[var(--color-text)] uppercase">{job.title}</h4>
+                        <p className="text-[10px] text-[var(--color-text-muted)]">{job.company?.name} • {job.location}</p>
+                        <span className="badge bg-[var(--color-surface)] text-[8px] border-[var(--color-border)] uppercase">{job.licenseClass} Required</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-extrabold text-xs text-emerald-400">
                           {convertAndFormatCurrency(job.salaryMin || 35000, currency)}
                         </span>
-                        <ChevronRight size={14} className="text-white/30" />
+                        <ChevronRight size={14} className="text-[var(--color-text-light)]" />
                       </div>
                     </div>
                   ))
@@ -550,28 +502,28 @@ const DriverDashboard: React.FC = () => {
           )}
 
           {activeTab === 'profile' && (
-            <div className="driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest font-mono">Driver Credentials</h3>
+            <div className="driver-widget glass border border-[var(--color-border)] p-6 rounded-2xl space-y-6">
+              <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest font-mono">{t('driver.licenseDetails')}</h3>
                 <button
                   onClick={() => setIsProfileEditing(!isProfileEditing)}
-                  className="btn btn-ghost border border-white/10 px-3.5 py-1.5 rounded-lg text-[10px] font-bold"
+                  className="btn btn-ghost border border-[var(--color-border)] px-3.5 py-1.5 rounded-lg text-[10px] font-bold text-[var(--color-text)]"
                 >
-                  {isProfileEditing ? 'Cancel Edit' : 'Edit Profile'}
+                  {isProfileEditing ? t('common.cancel') : t('driver.editBtn')}
                 </button>
               </div>
 
               <form onSubmit={handleProfileSubmit} className="space-y-4 max-w-md">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">License Class</label>
+                    <label className="block text-[9px] text-[var(--color-text-muted)] uppercase font-bold mb-1">{t('driver.licenseClass')}</label>
                     <input
                       type="text"
                       disabled={!isProfileEditing}
                       value={profileForm.licenseClass}
                       onChange={(e) => setProfileForm({ ...profileForm, licenseClass: e.target.value })}
                       placeholder="e.g. CLASS A"
-                      className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)]"
                       required
                     />
                     {formErrors.licenseClass && (
@@ -579,14 +531,14 @@ const DriverDashboard: React.FC = () => {
                     )}
                   </div>
                   <div>
-                    <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Years of Experience</label>
+                    <label className="block text-[9px] text-[var(--color-text-muted)] uppercase font-bold mb-1">{t('driver.experienceYears')}</label>
                     <input
                       type="number"
                       disabled={!isProfileEditing}
                       value={profileForm.yearsExperience}
                       onChange={(e) => setProfileForm({ ...profileForm, yearsExperience: e.target.value })}
                       placeholder="e.g. 5"
-                      className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)]"
                       required
                     />
                     {formErrors.yearsExperience && (
@@ -596,14 +548,14 @@ const DriverDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">License Number</label>
+                  <label className="block text-[9px] text-[var(--color-text-muted)] uppercase font-bold mb-1">{t('driver.licenseNumber')}</label>
                   <input
                     type="text"
                     disabled={!isProfileEditing}
                     value={profileForm.licenseNumber}
                     onChange={(e) => setProfileForm({ ...profileForm, licenseNumber: e.target.value })}
                     placeholder="e.g. DL-9836471"
-                    className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)]"
                     required
                   />
                   {formErrors.licenseNumber && (
@@ -612,14 +564,14 @@ const DriverDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Operational Phone</label>
+                  <label className="block text-[9px] text-[var(--color-text-muted)] uppercase font-bold mb-1">{t('driver.phone')}</label>
                   <input
                     type="text"
                     disabled={!isProfileEditing}
                     value={profileForm.phoneNumber}
                     onChange={(e) => setProfileForm({ ...profileForm, phoneNumber: e.target.value })}
                     placeholder="e.g. +254712345678"
-                    className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="input-field text-xs disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)]"
                     required
                   />
                   {formErrors.phoneNumber && (
@@ -636,11 +588,11 @@ const DriverDashboard: React.FC = () => {
                     {profileSubmitting ? (
                       <>
                         <RefreshCw size={12} className="animate-spin" />
-                        <span>Updating Credentials...</span>
+                        <span>{t('driver.saving')}</span>
                       </>
                     ) : (
                       <>
-                        <span>Save License Credentials</span>
+                        <span>{t('driver.saveBtn')}</span>
                         <Send size={12} />
                       </>
                     )}
@@ -651,16 +603,16 @@ const DriverDashboard: React.FC = () => {
           )}
 
           {activeTab === 'earnings' && (
-            <div className="driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest font-mono">Earning Manifests & Payouts</h3>
+            <div className="driver-widget glass border border-[var(--color-border)] p-6 rounded-2xl space-y-6">
+              <div className="border-b border-[var(--color-border)] pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest font-mono">{t('driver.monthlyPayouts')}</h3>
               </div>
 
               {/* Earnings Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40 uppercase font-bold text-[9px] tracking-wider">
+                    <tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)] uppercase font-bold text-[9px] tracking-wider">
                       <th className="pb-3">Trip ID</th>
                       <th className="pb-3">Route Terminal</th>
                       <th className="pb-3">Payout Date</th>
@@ -668,14 +620,14 @@ const DriverDashboard: React.FC = () => {
                       <th className="pb-3 text-right">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-[var(--color-border)]">
                     {[
                       { id: 'TRP-1982', route: 'Mombasa - Kampala', date: '2026-07-01', amount: 45000, status: 'DISBURSED' },
                       { id: 'TRP-1827', route: 'Nairobi - Eldoret', date: '2026-06-25', amount: 32000, status: 'DISBURSED' },
                       { id: 'TRP-1534', route: 'Malaba - Jinja', date: '2026-06-18', amount: 15000, status: 'DISBURSED' },
                     ].map((row, idx) => (
-                      <tr key={idx} className="text-white/80 hover:bg-white/5 transition-all">
-                        <td className="py-4 font-mono text-[10px] text-white/60">{row.id}</td>
+                      <tr key={idx} className="text-[var(--color-text)]/80 hover:bg-[var(--color-surface-2)] transition-all">
+                        <td className="py-4 font-mono text-[10px] text-[var(--color-text-light)]">{row.id}</td>
                         <td className="py-4 font-semibold">{row.route}</td>
                         <td className="py-4">{row.date}</td>
                         <td className="py-4 text-right font-black text-emerald-400">
@@ -694,9 +646,9 @@ const DriverDashboard: React.FC = () => {
         </div>
 
         {/* Right column alert guidelines */}
-        <div className="lg:col-span-4 driver-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-          <div className="border-b border-white/5 pb-4">
-            <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1.5">
+        <div className="lg:col-span-4 driver-widget glass border border-[var(--color-border)] p-6 rounded-2xl space-y-6">
+          <div className="border-b border-[var(--color-border)] pb-4">
+            <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-1.5">
               <Shield size={13} className="text-orange-500" /> Carrier Guidelines
             </h3>
           </div>
@@ -708,12 +660,12 @@ const DriverDashboard: React.FC = () => {
               { title: 'Speed Governors', text: 'Adhere to regional speed limits (max 80km/h for loaded shipping container vehicles). Speed violations are logged.', icon: AlertTriangle },
             ].map((g, i) => (
               <div key={i} className="flex gap-3 text-xs">
-                <div className="p-2 h-fit bg-white/5 rounded-lg border border-white/5 mt-0.5">
+                <div className="p-2 h-fit bg-[var(--color-surface-2)] rounded-lg border border-[var(--color-border)] mt-0.5">
                   <g.icon size={13} className="text-orange-500" />
                 </div>
                 <div className="space-y-1">
-                  <p className="font-bold text-white">{g.title}</p>
-                  <p className="text-white/50 leading-relaxed text-[11px]">{g.text}</p>
+                  <p className="font-bold text-[var(--color-text)]">{g.title}</p>
+                  <p className="text-[var(--color-text-muted)] leading-relaxed text-[11px]">{g.text}</p>
                 </div>
               </div>
             ))}
@@ -724,49 +676,49 @@ const DriverDashboard: React.FC = () => {
       {/* ─── MODAL: MANUAL CHECK-IN REPORT ─── */}
       {isLogModalOpen && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsLogModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
-              <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)] flex items-center gap-1.5">
                 <FileText size={14} className="text-orange-500" />
                 <span>Submit Customs/Incident Check-in Log</span>
               </h3>
-              <p className="text-[10px] text-white/40 mt-1">Dispatches manual checkpoints & coordinate packets directly to dispatcher logs.</p>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">{t('driver.checkpointPlaceholder')}</p>
             </div>
 
             <form onSubmit={handleCustomCheckin} className="space-y-4">
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Check-in Classification</label>
+                <label className="block text-[9px] text-[var(--color-text-muted)] uppercase font-bold mb-1">Check-in Classification</label>
                 <select
                   value={customLogType}
                   onChange={(e) => setCustomLogType(e.target.value)}
-                  className="input-field text-xs bg-white/5 border-white/10 text-white"
+                  className="input-field text-xs bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)]"
                 >
-                  <option value="CUSTOMS" className="bg-black">Customs & Border Clearance</option>
-                  <option value="FUEL" className="bg-black">Fuel Station Refill</option>
-                  <option value="MECHANICAL" className="bg-black">Mechanical Check / Repair</option>
-                  <option value="DELAY" className="bg-black">Traffic / Road Incident Delay</option>
-                  <option value="REST" className="bg-black">Driver Rest Break</option>
+                  <option value="CUSTOMS" className="bg-[var(--color-surface-2)]">Customs & Border Clearance</option>
+                  <option value="FUEL" className="bg-[var(--color-surface-2)]">Fuel Station Refill</option>
+                  <option value="MECHANICAL" className="bg-[var(--color-surface-2)]">Mechanical Check / Repair</option>
+                  <option value="DELAY" className="bg-[var(--color-surface-2)]">Traffic / Road Incident Delay</option>
+                  <option value="REST" className="bg-[var(--color-surface-2)]">Driver Rest Break</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Report Description & Notes</label>
+                <label className="block text-[9px] text-[var(--color-text-muted)] uppercase font-bold mb-1">Report Description & Notes</label>
                 <textarea
                   value={customLogText}
                   onChange={(e) => setCustomLogText(e.target.value)}
                   placeholder="e.g. Cleared through Kenya-Uganda customs gate at Malaba. All cargo seals intact."
-                  className="input-field text-xs h-24 resize-none"
+                  className="input-field text-xs h-24 resize-none bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)]"
                   required
                 />
               </div>
 
-              <div className="bg-white/5 p-3 rounded-lg border border-white/5 text-[9px] text-white/40">
+              <div className="bg-[var(--color-surface-2)] p-3 rounded-lg border border-[var(--color-border)] text-[9px] text-[var(--color-text-light)]">
                 Current Telemetry coordinates will be attached: {currentCoords.lat.toFixed(5)}, {currentCoords.lng.toFixed(5)}
               </div>
 
@@ -774,7 +726,7 @@ const DriverDashboard: React.FC = () => {
                 type="submit"
                 className="w-full btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider"
               >
-                Dispatch Check-in Log
+                {t('driver.reportBtn')}
               </button>
             </form>
           </div>
@@ -784,32 +736,32 @@ const DriverDashboard: React.FC = () => {
       {/* ─── MODAL: JOB DETAILS & CORRIDOR MISSION ─── */}
       {selectedJob && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setSelectedJob(null)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
               <span className="badge badge-primary text-[8px] uppercase tracking-widest">{selectedJob.jobType}</span>
-              <h3 className="text-sm uppercase font-extrabold text-white mt-1">{selectedJob.title}</h3>
-              <p className="text-[10px] text-white/40">{selectedJob.company?.name} | {selectedJob.location}</p>
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)] mt-1">{selectedJob.title}</h3>
+              <p className="text-[10px] text-[var(--color-text-muted)]">{selectedJob.company?.name} | {selectedJob.location}</p>
             </div>
 
-            <div className="space-y-4 text-xs text-white/80 max-h-60 overflow-y-auto border-y border-white/5 py-4">
+            <div className="space-y-4 text-xs text-[var(--color-text)]/80 max-h-60 overflow-y-auto border-y border-[var(--color-border)] py-4">
               <div className="space-y-1">
-                <p className="font-bold text-white uppercase text-[9px] text-orange-500">Mission Description</p>
+                <p className="font-bold text-[var(--color-text)] uppercase text-[9px] text-orange-500">Mission Description</p>
                 <p className="leading-relaxed">{selectedJob.description || 'No description provided.'}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="font-bold text-white uppercase text-[9px] text-orange-500 block">Required Permit</span>
+                  <span className="font-bold text-[var(--color-text)] uppercase text-[9px] text-orange-500 block">{t('driver.licenseClass')}</span>
                   <span>{selectedJob.licenseClass}</span>
                 </div>
                 <div>
-                  <span className="font-bold text-white uppercase text-[9px] text-orange-500 block">Est. Payout</span>
+                  <span className="font-bold text-[var(--color-text)] uppercase text-[9px] text-orange-500 block">Est. Payout</span>
                   <span className="font-semibold text-emerald-400">
                     {convertAndFormatCurrency(selectedJob.salaryMin || 35000, currency)}
                   </span>
@@ -823,13 +775,13 @@ const DriverDashboard: React.FC = () => {
                 className="flex-1 btn btn-primary py-2.5 text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-1.5"
               >
                 <CheckCircle size={12} />
-                <span>Confirm Application Submission</span>
+                <span>{t('driver.applyBtn')}</span>
               </button>
               <button
                 onClick={() => setSelectedJob(null)}
-                className="px-4 py-2.5 rounded-xl border border-white/10 text-white/80 hover:text-white text-xs font-bold"
+                className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text)]/80 hover:text-[var(--color-text)] text-xs font-bold"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

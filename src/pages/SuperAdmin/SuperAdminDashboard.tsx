@@ -196,19 +196,19 @@ const SuperAdminDashboard: React.FC = () => {
   return (
     <div ref={superRef} className="space-y-8 w-full max-w-full">
       {/* Title Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[var(--color-border)]/50 pb-6">
         <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+          <h2 className="text-2xl font-black text-[var(--color-text)] uppercase tracking-tight flex items-center gap-2">
             Super Admin <span className="text-orange-500">Monitor Console</span>
           </h2>
-          <p className="text-white/40 text-xs mt-1">Global registry dashboard, subscription plans, system health monitors, and time-travel utilities.</p>
+          <p className="text-[var(--color-text-light)] text-xs mt-1">Global registry dashboard, subscription plans, system health monitors, and time-travel utilities.</p>
         </div>
         <button
           onClick={() => {
             refetchTenants();
             toast.success('Global registers updated!');
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 hover:border-orange-500/50 text-xs font-semibold glass transition-all text-white/80 hover:text-white"
+          className="flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--color-border)] hover:border-orange-500/50 text-xs font-semibold glass transition-all text-[var(--color-text)] hover:text-[var(--color-text)]"
         >
           <RefreshCw size={12} />
           <span>Sync Registry</span>
@@ -225,24 +225,24 @@ const SuperAdminDashboard: React.FC = () => {
         ].map((c, i) => (
           <div key={i} className={`super-widget glass p-6 rounded-2xl border-l-4 ${c.border} border-y-0 border-r-0 shadow-lg flex items-center justify-between`}>
             <div className="space-y-1">
-              <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</span>
-              <p className="text-lg font-black text-white">{c.val}</p>
+              <span className="text-[10px] text-[var(--color-text-light)] uppercase font-bold tracking-wider">{c.label}</span>
+              <p className="text-lg font-black text-[var(--color-text)]">{c.val}</p>
             </div>
-            <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-              <c.icon size={16} className="text-white/60" />
+            <div className="p-3 bg-[var(--color-surface-2)]/50 rounded-xl border border-[var(--color-border)]/50">
+              <c.icon size={16} className="text-[var(--color-text-muted)]" />
             </div>
           </div>
         ))}
       </div>
 
       {/* Tabs list */}
-      <div className="flex border-b border-white/5">
+      <div className="flex border-b border-[var(--color-border)]/50">
         {(['tenants', 'system-health', 'time-travel'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-6 py-3 text-xs uppercase font-extrabold tracking-wider transition-all relative ${
-              activeTab === tab ? 'text-orange-500' : 'text-white/40 hover:text-white/80'
+              activeTab === tab ? 'text-orange-500' : 'text-[var(--color-text-light)] hover:text-[var(--color-text)]'
             }`}
           >
             <span>{tab.replace('-', ' ')}</span>
@@ -256,9 +256,9 @@ const SuperAdminDashboard: React.FC = () => {
       {/* Tabs Dispatch */}
       <div className="grid grid-cols-1 gap-8 items-start">
         {activeTab === 'tenants' && (
-          <div className="super-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-4">
-              <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1.5">
+          <div className="super-widget glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[var(--color-border)]/50 pb-4">
+              <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-1.5">
                 <Building2 size={14} className="text-orange-500" /> Carrier Tenants Registry
               </h3>
               <button
@@ -282,7 +282,7 @@ const SuperAdminDashboard: React.FC = () => {
               <select
                 value={filterPlan}
                 onChange={(e) => setFilterPlan(e.target.value)}
-                className="input-field text-xs bg-white/5 border-white/10 text-white"
+                className="input-field text-xs bg-[var(--color-surface-2)]/50 border-[var(--color-border)] text-[var(--color-text)]"
               >
                 <option value="" className="bg-black">All Subscription Plans</option>
                 <option value="TRIAL" className="bg-black">Trial Plan</option>
@@ -292,7 +292,7 @@ const SuperAdminDashboard: React.FC = () => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="input-field text-xs bg-white/5 border-white/10 text-white"
+                className="input-field text-xs bg-[var(--color-surface-2)]/50 border-[var(--color-border)] text-[var(--color-text)]"
               >
                 <option value="" className="bg-black">All Statuses</option>
                 <option value="ACTIVE" className="bg-black">Active</option>
@@ -304,7 +304,7 @@ const SuperAdminDashboard: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-white/10 text-white/40 uppercase font-bold text-[9px] tracking-wider">
+                  <tr className="border-b border-[var(--color-border)] text-[var(--color-text-light)] uppercase font-bold text-[9px] tracking-wider">
                     <th className="pb-3">Carrier / Slug</th>
                     <th className="pb-3">Corporate Contact</th>
                     <th className="pb-3">Country</th>
@@ -315,27 +315,27 @@ const SuperAdminDashboard: React.FC = () => {
                 <tbody className="divide-y divide-white/5">
                   {loadingTenants ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-xs text-white/40 flex items-center justify-center gap-2">
+                      <td colSpan={5} className="py-8 text-center text-xs text-[var(--color-text-light)] flex items-center justify-center gap-2">
                         <RefreshCw size={12} className="animate-spin" />
                         <span>Querying Tenant Registry Database...</span>
                       </td>
                     </tr>
                   ) : tenants.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-white/40">No carrier tenants found.</td>
+                      <td colSpan={5} className="py-8 text-center text-[var(--color-text-light)]">No carrier tenants found.</td>
                     </tr>
                   ) : (
                     tenants.map((t: any) => (
-                      <tr key={t.id} className="text-white/80 hover:bg-white/5 transition-all">
+                      <tr key={t.id} className="text-[var(--color-text)] hover:bg-[var(--color-surface-2)]/50 transition-all">
                         <td className="py-4">
-                          <span className="font-bold text-white block">{t.name}</span>
-                          <span className="text-[10px] text-white/40 font-mono">slug: {t.slug}</span>
+                          <span className="font-bold text-[var(--color-text)] block">{t.name}</span>
+                          <span className="text-[10px] text-[var(--color-text-light)] font-mono">slug: {t.slug}</span>
                         </td>
                         <td className="py-4">
                           <span className="block">{t.email}</span>
-                          <span className="text-[10px] text-white/45">{t.phone || 'No Phone'}</span>
+                          <span className="text-[10px] text-[var(--color-text)]/45">{t.phone || 'No Phone'}</span>
                         </td>
-                        <td className="py-4 text-white/60">{t.country}</td>
+                        <td className="py-4 text-[var(--color-text-muted)]">{t.country}</td>
                         <td className="py-4 font-mono font-bold text-indigo-400">{t.plan}</td>
                         <td className="py-4 text-right space-x-2">
                           <button
@@ -362,9 +362,9 @@ const SuperAdminDashboard: React.FC = () => {
         {activeTab === 'system-health' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* API performance logs */}
-            <div className="super-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Global Endpoint Performance Monitor</h3>
+            <div className="super-widget glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+              <div className="border-b border-[var(--color-border)]/50 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest">Global Endpoint Performance Monitor</h3>
               </div>
 
               <div className="space-y-4">
@@ -374,10 +374,10 @@ const SuperAdminDashboard: React.FC = () => {
                   { endpoint: 'graphql/mutation (LogLocation)', latency: '18ms', rate: '142 req/s', status: 'NOMINAL' },
                   { endpoint: 'rest/images/upload', latency: '240ms', rate: '1 req/s', status: 'NOMINAL' },
                 ].map((row, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all flex justify-between items-center text-xs">
+                  <div key={idx} className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 hover:border-[var(--color-border)] transition-all flex justify-between items-center text-xs">
                     <div className="space-y-1">
-                      <p className="font-bold text-white font-mono">{row.endpoint}</p>
-                      <p className="text-[10px] text-white/40">Rate: {row.rate}</p>
+                      <p className="font-bold text-[var(--color-text)] font-mono">{row.endpoint}</p>
+                      <p className="text-[10px] text-[var(--color-text-light)]">Rate: {row.rate}</p>
                     </div>
                     <div className="text-right space-y-1">
                       <span className="badge badge-primary text-[8px] font-bold font-mono">{row.latency}</span>
@@ -389,9 +389,9 @@ const SuperAdminDashboard: React.FC = () => {
             </div>
 
             {/* Platform Security Log */}
-            <div className="super-widget glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1 text-orange-500">
+            <div className="super-widget glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+              <div className="border-b border-[var(--color-border)]/50 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-1 text-orange-500">
                   <Shield size={14} />
                   <span>Intrusion Prevention & Security Audit</span>
                 </h3>
@@ -404,10 +404,10 @@ const SuperAdminDashboard: React.FC = () => {
                   { event: 'Tenant Domain SSL checks', count: 'Let\'s Encrypt Valid', status: 'PASS' },
                   { event: 'Failed Authentication Locks', count: '0 accounts currently locked', status: 'CLEAN' },
                 ].map((row, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all flex justify-between items-center text-xs">
+                  <div key={idx} className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 hover:border-[var(--color-border)] transition-all flex justify-between items-center text-xs">
                     <div className="space-y-1">
-                      <p className="font-bold text-white">{row.event}</p>
-                      <p className="text-[10px] text-white/40">{row.count}</p>
+                      <p className="font-bold text-[var(--color-text)]">{row.event}</p>
+                      <p className="text-[10px] text-[var(--color-text-light)]">{row.count}</p>
                     </div>
                     <span className="badge badge-success text-[8px] font-bold">{row.status}</span>
                   </div>
@@ -418,12 +418,12 @@ const SuperAdminDashboard: React.FC = () => {
         )}
 
         {activeTab === 'time-travel' && (
-          <div className="super-widget glass border border-white/5 p-6 rounded-2xl space-y-6 max-w-xl">
-            <div className="border-b border-white/5 pb-4 flex items-center gap-2">
+          <div className="super-widget glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6 max-w-xl">
+            <div className="border-b border-[var(--color-border)]/50 pb-4 flex items-center gap-2">
               <Activity size={16} className="text-orange-500" />
               <div>
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest font-mono">Time-Travel Cryptographic Snapshots</h3>
-                <p className="text-[10px] text-white/40 mt-1">Manual system snapshots to review billing archives, fleet capacities and driver rosters at historic dates.</p>
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest font-mono">Time-Travel Cryptographic Snapshots</h3>
+                <p className="text-[10px] text-[var(--color-text-light)] mt-1">Manual system snapshots to review billing archives, fleet capacities and driver rosters at historic dates.</p>
               </div>
             </div>
 
@@ -433,14 +433,14 @@ const SuperAdminDashboard: React.FC = () => {
                 { title: 'Purge Expired Verification Tokens', desc: 'Flushes domain TXT credentials and OTP security codes from the cache.', mode: 'SECURITY' },
                 { title: 'Recalculate Route OSRM Estimations', desc: 'Syncs road corridor weight rules with current East African transit updates.', mode: 'ROUTING' }
               ].map((s, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
+                <div key={idx} className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 hover:border-[var(--color-border)] transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
                   <div className="space-y-1 max-w-md">
-                    <p className="font-bold text-white">{s.title}</p>
-                    <p className="text-white/40 text-[10px] leading-relaxed">{s.desc}</p>
+                    <p className="font-bold text-[var(--color-text)]">{s.title}</p>
+                    <p className="text-[var(--color-text-light)] text-[10px] leading-relaxed">{s.desc}</p>
                   </div>
                   <button
                     onClick={() => handleSnapshotTrigger(s.mode)}
-                    className="btn btn-ghost border border-white/10 hover:border-orange-500/50 text-[9px] px-3.5 py-1.5 rounded-lg font-bold uppercase shrink-0"
+                    className="btn btn-ghost border border-[var(--color-border)] hover:border-orange-500/50 text-[9px] px-3.5 py-1.5 rounded-lg font-bold uppercase shrink-0"
                   >
                     Trigger Run
                   </button>
@@ -454,22 +454,22 @@ const SuperAdminDashboard: React.FC = () => {
       {/* Onboard Tenant Modal */}
       {isTenantModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsTenantModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
-              <h3 className="text-sm uppercase font-extrabold text-white">Register Carrier Tenant</h3>
-              <p className="text-[10px] text-white/40 mt-1">Provision a new multitenant company container with automatic schema hooks.</p>
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)]">Register Carrier Tenant</h3>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">Provision a new multitenant company container with automatic schema hooks.</p>
             </div>
 
             <form onSubmit={handleRegisterTenantSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Company Legal Name</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Company Legal Name</label>
                   <input
                     type="text"
                     value={tenantForm.name}
@@ -484,7 +484,7 @@ const SuperAdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Custom Subdomain Slug</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Custom Subdomain Slug</label>
                   <input
                     type="text"
                     value={tenantForm.slug}
@@ -499,7 +499,7 @@ const SuperAdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Corporate Email Address</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Corporate Email Address</label>
                 <input
                   type="email"
                   value={tenantForm.email}
@@ -515,7 +515,7 @@ const SuperAdminDashboard: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Operational Phone</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Operational Phone</label>
                   <input
                     type="text"
                     value={tenantForm.phone}
@@ -526,11 +526,11 @@ const SuperAdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Subscription Plan</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Subscription Plan</label>
                   <select
                     value={tenantForm.plan}
                     onChange={(e) => setTenantForm({ ...tenantForm, plan: e.target.value })}
-                    className="input-field text-xs bg-white/5 border-white/10 text-white"
+                    className="input-field text-xs bg-[var(--color-surface-2)]/50 border-[var(--color-border)] text-[var(--color-text)]"
                   >
                     <option value="TRIAL" className="bg-black">Trial Account (30 Days)</option>
                     <option value="GROWTH" className="bg-black">Growth Plan (Corridor pricing)</option>
@@ -541,7 +541,7 @@ const SuperAdminDashboard: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Office Address</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Office Address</label>
                   <input
                     type="text"
                     value={tenantForm.address}
@@ -551,7 +551,7 @@ const SuperAdminDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Country</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Country</label>
                   <input
                     type="text"
                     value={tenantForm.country}

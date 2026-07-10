@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { GET_TENANT_THEME } from '../../api/queries';
 
 export const TenantThemeManager: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { activeTenantId, user } = useAppStore();
+  const { activeTenantId, user, theme } = useAppStore();
   
   // Use either activeTenantId or fallback to the user's tenantId
   const tenantId = activeTenantId || user?.tenantId;
@@ -14,6 +14,10 @@ export const TenantThemeManager: React.FC<{ children: React.ReactNode }> = ({ ch
     skip: !tenantId,
     fetchPolicy: 'cache-first',
   });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
   useEffect(() => {
     if (data?.tenantTheme) {

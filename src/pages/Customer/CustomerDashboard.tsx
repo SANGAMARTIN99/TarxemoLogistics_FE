@@ -327,7 +327,7 @@ const CustomerDashboard: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <RefreshCw size={24} className="text-orange-500 animate-spin" />
-        <p className="text-white/40 text-xs uppercase font-semibold tracking-wider">Syncing dashboard statistics...</p>
+        <p className="text-[var(--color-text-light)] text-xs uppercase font-semibold tracking-wider">Syncing dashboard statistics...</p>
       </div>
     );
   }
@@ -345,12 +345,12 @@ const CustomerDashboard: React.FC = () => {
   return (
     <div ref={dashboardRef} className="space-y-8 w-full">
       {/* Dashboard Greeting Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[var(--color-border)]/50 pb-6">
         <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+          <h2 className="text-2xl font-black text-[var(--color-text)] uppercase tracking-tight flex items-center gap-2">
             Customer <span className="text-orange-500">Freight Center</span>
           </h2>
-          <p className="text-white/40 text-xs mt-1">Submit load details, inspect invoice payments, and track containers in real-time.</p>
+          <p className="text-[var(--color-text-light)] text-xs mt-1">Submit load details, inspect invoice payments, and track containers in real-time.</p>
         </div>
         <button
           onClick={() => {
@@ -359,7 +359,7 @@ const CustomerDashboard: React.FC = () => {
             refetchInvoices();
             toast.success('Dashboard metrics refreshed!');
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 hover:border-orange-500/50 text-xs font-semibold glass transition-all text-white/80 hover:text-white"
+          className="flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--color-border)] hover:border-orange-500/50 text-xs font-semibold glass transition-all text-[var(--color-text)] hover:text-[var(--color-text)]"
         >
           <RefreshCw size={12} />
           <span>Sync Console</span>
@@ -375,24 +375,24 @@ const CustomerDashboard: React.FC = () => {
         ].map((stat, i) => (
           <div key={i} className={`dashboard-card glass p-6 rounded-2xl border-l-4 ${stat.border} border-y-0 border-r-0 shadow-xl flex items-center justify-between`}>
             <div className="space-y-1">
-              <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{stat.label}</span>
-              <p className="text-xl font-black text-white">{stat.val}</p>
+              <span className="text-[10px] text-[var(--color-text-light)] uppercase font-bold tracking-wider">{stat.label}</span>
+              <p className="text-xl font-black text-[var(--color-text)]">{stat.val}</p>
             </div>
-            <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-              <stat.icon size={18} className="text-white/60" />
+            <div className="p-3 bg-[var(--color-surface-2)]/50 rounded-xl border border-[var(--color-border)]/50">
+              <stat.icon size={18} className="text-[var(--color-text-muted)]" />
             </div>
           </div>
         ))}
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-white/5">
+      <div className="flex border-b border-[var(--color-border)]/50">
         {(['shipments', 'quotes', 'invoices'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-6 py-3 text-xs uppercase font-extrabold tracking-wider transition-all relative ${
-              activeTab === tab ? 'text-orange-500' : 'text-white/40 hover:text-white/80'
+              activeTab === tab ? 'text-orange-500' : 'text-[var(--color-text-light)] hover:text-[var(--color-text)]'
             }`}
           >
             <span>{tab}</span>
@@ -408,16 +408,16 @@ const CustomerDashboard: React.FC = () => {
         {/* Main interactive panel */}
         <div className="lg:col-span-8 space-y-6">
           {activeTab === 'shipments' && (
-            <div className="dashboard-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-2">
+            <div className="dashboard-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+              <div className="flex justify-between items-center border-b border-[var(--color-border)]/50 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-2">
                   <Activity size={14} className="text-orange-500 animate-pulse" /> Active Transit Tracking
                 </h3>
                 <span className="badge badge-success text-[8px]">GPS Feeds Live</span>
               </div>
 
               {/* Dynamic shipment visual map simulator */}
-              <div className="w-full h-48 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden flex items-center justify-center p-4">
+              <div className="w-full h-48 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)]/50 relative overflow-hidden flex items-center justify-center p-4">
                 <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 200">
                   <path
                     d="M 50,150 Q 250,50 450,120"
@@ -440,16 +440,16 @@ const CustomerDashboard: React.FC = () => {
                 </svg>
 
                 <div className="absolute top-8 left-8 text-left space-y-1 z-15">
-                  <p className="text-[8px] text-white/40 uppercase font-black">Pickup Checkpoint</p>
-                  <p className="text-xs font-bold text-white">Mombasa Port (KE)</p>
+                  <p className="text-[8px] text-[var(--color-text-light)] uppercase font-black">Pickup Checkpoint</p>
+                  <p className="text-xs font-bold text-[var(--color-text)]">Mombasa Port (KE)</p>
                 </div>
 
                 <div className="absolute bottom-8 right-8 text-right space-y-1 z-15">
-                  <p className="text-[8px] text-white/40 uppercase font-black">Final Terminal</p>
-                  <p className="text-xs font-bold text-white">Kampala Depot (UG)</p>
+                  <p className="text-[8px] text-[var(--color-text-light)] uppercase font-black">Final Terminal</p>
+                  <p className="text-xs font-bold text-[var(--color-text)]">Kampala Depot (UG)</p>
                 </div>
 
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 text-[9px] text-white/80 font-semibold tracking-wider flex items-center gap-1.5">
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-[var(--color-surface)] backdrop-blur-md px-4 py-1.5 rounded-full border border-[var(--color-border)] text-[9px] text-[var(--color-text)] font-semibold tracking-wider flex items-center gap-1.5">
                   <Truck size={10} className="text-orange-500" />
                   <span>En-Route: Malaba Border Station</span>
                 </div>
@@ -458,31 +458,31 @@ const CustomerDashboard: React.FC = () => {
               {/* Shipment Cards list */}
               <div className="space-y-4">
                 {stats.recentShipments.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-white/40">No active shipments in transit. Request a quote to initiate.</div>
+                  <div className="p-8 text-center text-xs text-[var(--color-text-light)]">No active shipments in transit. Request a quote to initiate.</div>
                 ) : (
                   stats.recentShipments.map((shipment: any) => (
-                    <div key={shipment.id} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div key={shipment.id} className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 hover:border-[var(--color-border)] transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-white">{shipment.trackingNumber}</span>
+                          <span className="text-xs font-black text-[var(--color-text)]">{shipment.trackingNumber}</span>
                           <span className="badge badge-primary text-[8px] px-2 py-0.5 uppercase">{shipment.status.replace('_', ' ')}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-[10px] text-white/50">
+                        <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-muted)]">
                           <span>{shipment.pickup}</span>
-                          <ArrowRight size={10} className="text-white/30" />
+                          <ArrowRight size={10} className="text-[var(--color-text-light)]" />
                           <span>{shipment.delivery}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 text-left sm:text-right w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-white/5">
+                      <div className="flex items-center gap-3 text-left sm:text-right w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-[var(--color-border)]/50">
                         <div className="space-y-0.5 mr-2">
-                          <span className="text-[8px] text-white/40 uppercase font-black">ETA Delivery</span>
-                          <p className="text-xs font-bold text-white">{shipment.estimatedDelivery}</p>
+                          <span className="text-[8px] text-[var(--color-text-light)] uppercase font-black">ETA Delivery</span>
+                          <p className="text-xs font-bold text-[var(--color-text)]">{shipment.estimatedDelivery}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => { setSelectedShipment(shipment); setIsShipmentModalOpen(true); }}
-                            className="btn btn-ghost border border-white/10 text-[10px] px-3.5 py-1.5 rounded-lg font-bold"
+                            className="btn btn-ghost border border-[var(--color-border)] text-[10px] px-3.5 py-1.5 rounded-lg font-bold"
                           >
                             Live Map
                           </button>
@@ -505,15 +505,15 @@ const CustomerDashboard: React.FC = () => {
           )}
 
           {activeTab === 'quotes' && (
-            <div className="dashboard-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Freight Quotation History</h3>
+            <div className="dashboard-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+              <div className="border-b border-[var(--color-border)]/50 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest">Freight Quotation History</h3>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40 uppercase font-bold text-[9px] tracking-wider">
+                    <tr className="border-b border-[var(--color-border)] text-[var(--color-text-light)] uppercase font-bold text-[9px] tracking-wider">
                       <th className="pb-3">Route</th>
                       <th className="pb-3">Container</th>
                       <th className="pb-3">Weight (Tons)</th>
@@ -524,18 +524,18 @@ const CustomerDashboard: React.FC = () => {
                   <tbody className="divide-y divide-white/5">
                     {quotes.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-white/40">No quotes generated yet. Submit the request panel on the right.</td>
+                        <td colSpan={5} className="py-8 text-center text-[var(--color-text-light)]">No quotes generated yet. Submit the request panel on the right.</td>
                       </tr>
                     ) : (
                       quotes.map((q: any) => (
                         <tr
                           key={q.id}
                           onClick={() => { setSelectedQuote(q); setIsQuoteModalOpen(true); }}
-                          className="text-white/80 hover:bg-white/5 transition-all cursor-pointer"
+                          className="text-[var(--color-text)] hover:bg-[var(--color-surface-2)]/50 transition-all cursor-pointer"
                         >
                           <td className="py-4 font-semibold">
                             <span className="block text-xs">{q.pickupLocation}</span>
-                            <span className="text-[9px] text-white/40">to {q.deliveryLocation}</span>
+                            <span className="text-[9px] text-[var(--color-text-light)]">to {q.deliveryLocation}</span>
                           </td>
                           <td className="py-4">{q.containerType}</td>
                           <td className="py-4 font-semibold">{q.weightTons} Tons</td>
@@ -559,15 +559,15 @@ const CustomerDashboard: React.FC = () => {
           )}
 
           {activeTab === 'invoices' && (
-            <div className="dashboard-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Billing & Invoices</h3>
+            <div className="dashboard-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+              <div className="border-b border-[var(--color-border)]/50 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest">Billing & Invoices</h3>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/40 uppercase font-bold text-[9px] tracking-wider">
+                    <tr className="border-b border-[var(--color-border)] text-[var(--color-text-light)] uppercase font-bold text-[9px] tracking-wider">
                       <th className="pb-3">Invoice ID</th>
                       <th className="pb-3">Date Generated</th>
                       <th className="pb-3">Due Date</th>
@@ -578,15 +578,15 @@ const CustomerDashboard: React.FC = () => {
                   <tbody className="divide-y divide-white/5">
                     {invoices.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-white/40">No pending invoices found.</td>
+                        <td colSpan={5} className="py-8 text-center text-[var(--color-text-light)]">No pending invoices found.</td>
                       </tr>
                     ) : (
                       invoices.map((inv: any) => (
-                        <tr key={inv.id} className="text-white/80 hover:bg-white/5 transition-all">
-                          <td className="py-4 font-mono text-[10px] text-white/60">{inv.id.slice(0, 8)}...</td>
+                        <tr key={inv.id} className="text-[var(--color-text)] hover:bg-[var(--color-surface-2)]/50 transition-all">
+                          <td className="py-4 font-mono text-[10px] text-[var(--color-text-muted)]">{inv.id.slice(0, 8)}...</td>
                           <td className="py-4">{inv.createdAt.split('T')[0]}</td>
-                          <td className="py-4 text-white/50">{inv.dueDate}</td>
-                          <td className="py-4 text-right font-black text-white">
+                          <td className="py-4 text-[var(--color-text-muted)]">{inv.dueDate}</td>
+                          <td className="py-4 text-right font-black text-[var(--color-text)]">
                             {convertAndFormatCurrency(inv.amount, currency)}
                           </td>
                           <td className="py-4 text-right space-x-2">
@@ -602,7 +602,7 @@ const CustomerDashboard: React.FC = () => {
                             )}
                             <button
                               onClick={() => handleDownloadInvoice(inv)}
-                              className="btn btn-ghost border border-white/10 text-[9px] p-1.5 rounded-lg hover:border-orange-500/50"
+                              className="btn btn-ghost border border-[var(--color-border)] text-[9px] p-1.5 rounded-lg hover:border-orange-500/50"
                               title="Download PDF confirmation"
                             >
                               <Download size={10} />
@@ -619,19 +619,19 @@ const CustomerDashboard: React.FC = () => {
         </div>
 
         {/* Right side form panel: Request Quote */}
-        <div className="lg:col-span-4 dashboard-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-          <div className="border-b border-white/5 pb-4">
-            <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1.5">
+        <div className="lg:col-span-4 dashboard-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+          <div className="border-b border-[var(--color-border)]/50 pb-4">
+            <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-1.5">
               <TrendingUp size={13} className="text-orange-500" /> Dynamic Quote Estimator
             </h3>
-            <p className="text-[10px] text-white/40 mt-1">Get immediate pricing estimates for international cargo routes.</p>
+            <p className="text-[10px] text-[var(--color-text-light)] mt-1">Get immediate pricing estimates for international cargo routes.</p>
           </div>
 
           <form onSubmit={handleQuoteSubmit} className="space-y-4">
             <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Pickup Terminal</label>
+              <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Pickup Terminal</label>
               <div className="relative">
-                <MapPin className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-white/30" size={13} />
+                <MapPin className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[var(--color-text-light)]" size={13} />
                 <input
                   type="text"
                   value={quoteForm.pickupLocation}
@@ -647,9 +647,9 @@ const CustomerDashboard: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Delivery Destination</label>
+              <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Delivery Destination</label>
               <div className="relative">
-                <MapPin className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-white/30" size={13} />
+                <MapPin className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[var(--color-text-light)]" size={13} />
                 <input
                   type="text"
                   value={quoteForm.deliveryLocation}
@@ -666,7 +666,7 @@ const CustomerDashboard: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Weight (Tons)</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Weight (Tons)</label>
                 <input
                   type="number"
                   step="0.1"
@@ -681,11 +681,11 @@ const CustomerDashboard: React.FC = () => {
                 )}
               </div>
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Container size</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Container size</label>
                 <select
                   value={quoteForm.containerType}
                   onChange={(e) => setQuoteForm({ ...quoteForm, containerType: e.target.value })}
-                  className="input-field text-xs bg-white/5 border-white/10 text-white"
+                  className="input-field text-xs bg-[var(--color-surface-2)]/50 border-[var(--color-border)] text-[var(--color-text)]"
                 >
                   <option value="20FT" className="bg-black">20FT Dry Van</option>
                   <option value="40FT" className="bg-black">40FT Dry Van</option>
@@ -696,7 +696,7 @@ const CustomerDashboard: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Cargo Declared Value (KES)</label>
+              <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Cargo Declared Value (KES)</label>
               <input
                 type="number"
                 value={quoteForm.declaredValue}
@@ -715,9 +715,9 @@ const CustomerDashboard: React.FC = () => {
                   type="checkbox"
                   checked={quoteForm.isHazmat}
                   onChange={(e) => setQuoteForm({ ...quoteForm, isHazmat: e.target.checked })}
-                  className="accent-orange-500 rounded bg-white/5 border-white/10"
+                  className="accent-orange-500 rounded bg-[var(--color-surface-2)]/50 border-[var(--color-border)]"
                 />
-                <span className="text-[10px] text-white/70 font-semibold uppercase">Hazmat Surcharge</span>
+                <span className="text-[10px] text-[var(--color-text-muted)] font-semibold uppercase">Hazmat Surcharge</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -725,14 +725,14 @@ const CustomerDashboard: React.FC = () => {
                   type="checkbox"
                   checked={quoteForm.isExpress}
                   onChange={(e) => setQuoteForm({ ...quoteForm, isExpress: e.target.checked })}
-                  className="accent-orange-500 rounded bg-white/5 border-white/10"
+                  className="accent-orange-500 rounded bg-[var(--color-surface-2)]/50 border-[var(--color-border)]"
                 />
-                <span className="text-[10px] text-white/70 font-semibold uppercase">Express Surcharge</span>
+                <span className="text-[10px] text-[var(--color-text-muted)] font-semibold uppercase">Express Surcharge</span>
               </label>
             </div>
 
             <div>
-              <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Cargo Details & Description</label>
+              <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Cargo Details & Description</label>
               <textarea
                 value={quoteForm.cargoDetails}
                 onChange={(e) => setQuoteForm({ ...quoteForm, cargoDetails: e.target.value })}
@@ -770,39 +770,39 @@ const CustomerDashboard: React.FC = () => {
         const pricing = getPricingBreakdown(selectedQuote);
         return (
           <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
+            <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-lg space-y-6 relative animate-in zoom-in-95 duration-200">
               <button
                 onClick={() => setIsQuoteModalOpen(false)}
-                className="absolute top-4 right-4 text-white/40 hover:text-white"
+                className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
               >
                 <X size={14} />
               </button>
               <div>
-                <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+                <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)] flex items-center gap-1.5">
                   <ClipboardList size={14} className="text-orange-500" />
                   <span>Quote Itemization Breakdown</span>
                 </h3>
-                <p className="text-[10px] text-white/40 mt-1">Detailed transparency breakdown for route: {selectedQuote.pickupLocation} to {selectedQuote.deliveryLocation}</p>
+                <p className="text-[10px] text-[var(--color-text-light)] mt-1">Detailed transparency breakdown for route: {selectedQuote.pickupLocation} to {selectedQuote.deliveryLocation}</p>
               </div>
 
-              <div className="space-y-3.5 border-y border-white/5 py-4 text-xs">
-                <div className="flex justify-between items-center text-white/60">
+              <div className="space-y-3.5 border-y border-[var(--color-border)]/50 py-4 text-xs">
+                <div className="flex justify-between items-center text-[var(--color-text-muted)]">
                   <span>Base Charge (Corridor Rate Card)</span>
                   <span className="font-semibold">{convertAndFormatCurrency(pricing?.base || 0, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center text-white/60">
+                <div className="flex justify-between items-center text-[var(--color-text-muted)]">
                   <span>Tonnage Surcharge ({selectedQuote.weightTons} Tons)</span>
                   <span className="font-semibold">{convertAndFormatCurrency(pricing?.weightFee || 0, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center text-white/60">
+                <div className="flex justify-between items-center text-[var(--color-text-muted)]">
                   <span>Distance Transit Rate (OSRM calculated)</span>
                   <span className="font-semibold">{convertAndFormatCurrency(pricing?.distanceFee || 0, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center text-white/60">
+                <div className="flex justify-between items-center text-[var(--color-text-muted)]">
                   <span>Hazmat & Priority Multipliers</span>
                   <span className="font-semibold">{convertAndFormatCurrency(pricing?.surcharges || 0, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center text-white/60">
+                <div className="flex justify-between items-center text-[var(--color-text-muted)]">
                   <span>Cargo Insurance Levy (Declared Value)</span>
                   <span className="font-semibold">{convertAndFormatCurrency(pricing?.insurance || 0, currency)}</span>
                 </div>
@@ -810,7 +810,7 @@ const CustomerDashboard: React.FC = () => {
                   <span>Loyalty Discount (Volume Tier)</span>
                   <span>{convertAndFormatCurrency(pricing?.discount || 0, currency)}</span>
                 </div>
-                <div className="flex justify-between items-center border-t border-white/10 pt-3 text-sm font-black text-white">
+                <div className="flex justify-between items-center border-t border-[var(--color-border)] pt-3 text-sm font-black text-[var(--color-text)]">
                   <span className="uppercase">Net Estimated Quote</span>
                   <span className="text-orange-500">{convertAndFormatCurrency(pricing?.total || 0, currency)}</span>
                 </div>
@@ -830,7 +830,7 @@ const CustomerDashboard: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setIsQuoteModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-white/10 text-white/80 hover:text-white text-xs font-bold"
+                  className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] hover:text-[var(--color-text)] text-xs font-bold"
                 >
                   Dismiss
                 </button>
@@ -843,26 +843,26 @@ const CustomerDashboard: React.FC = () => {
       {/* ─── MODAL: SHIPMENT TRACKING & GPS REPLAY ─── */}
       {isShipmentModalOpen && selectedShipment && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-2xl space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-2xl space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsShipmentModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-white/5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-[var(--color-border)]/50">
               <div>
-                <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+                <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)] flex items-center gap-1.5">
                   <Activity size={14} className="text-orange-500 animate-pulse" />
                   <span>Shipment Live Tracking Panel ({selectedShipment.trackingNumber})</span>
                 </h3>
-                <p className="text-[10px] text-white/40">Pickup: {selectedShipment.pickup} | Destination: {selectedShipment.delivery}</p>
+                <p className="text-[10px] text-[var(--color-text-light)]">Pickup: {selectedShipment.pickup} | Destination: {selectedShipment.delivery}</p>
               </div>
               <span className="badge badge-success text-[8px] font-bold uppercase tracking-wider">Nominal Corridor Transit</span>
             </div>
 
             {/* Map Simulation */}
-            <div className="w-full h-64 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden flex flex-col justify-between p-4">
+            <div className="w-full h-64 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border)]/50 relative overflow-hidden flex flex-col justify-between p-4">
               {/* Geofence Indicators */}
               <div className="absolute top-4 right-4 flex flex-col gap-1.5 text-right z-20">
                 <span className="badge bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[7px] font-bold px-2 py-0.5">
@@ -896,23 +896,23 @@ const CustomerDashboard: React.FC = () => {
 
               <div className="flex justify-between items-start z-10">
                 <div className="space-y-1">
-                  <p className="text-[7px] text-white/40 uppercase font-black">Current GPS Ping</p>
-                  <p className="text-[10px] text-white font-semibold">Lat: -3.3142, Lng: 38.3182 (Taita Hills Corridor)</p>
+                  <p className="text-[7px] text-[var(--color-text-light)] uppercase font-black">Current GPS Ping</p>
+                  <p className="text-[10px] text-[var(--color-text)] font-semibold">Lat: -3.3142, Lng: 38.3182 (Taita Hills Corridor)</p>
                 </div>
-                <div className="bg-black/60 px-3 py-1 rounded border border-white/10 text-[9px] text-white font-mono flex items-center gap-1.5">
+                <div className="bg-black/60 px-3 py-1 rounded border border-[var(--color-border)] text-[9px] text-[var(--color-text)] font-mono flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                   <span>Route status: OK</span>
                 </div>
               </div>
 
-              <div className="flex justify-between items-end z-10 border-t border-white/5 pt-2">
+              <div className="flex justify-between items-end z-10 border-t border-[var(--color-border)]/50 pt-2">
                 <div>
-                  <span className="text-[7px] text-white/40 uppercase font-black block">Origin</span>
-                  <span className="text-[10px] text-white font-bold">{selectedShipment.pickup}</span>
+                  <span className="text-[7px] text-[var(--color-text-light)] uppercase font-black block">Origin</span>
+                  <span className="text-[10px] text-[var(--color-text)] font-bold">{selectedShipment.pickup}</span>
                 </div>
                 <div>
-                  <span className="text-[7px] text-white/40 uppercase font-black block text-right">Destination</span>
-                  <span className="text-[10px] text-white font-bold">{selectedShipment.delivery}</span>
+                  <span className="text-[7px] text-[var(--color-text-light)] uppercase font-black block text-right">Destination</span>
+                  <span className="text-[10px] text-[var(--color-text)] font-bold">{selectedShipment.delivery}</span>
                 </div>
               </div>
             </div>
@@ -920,10 +920,10 @@ const CustomerDashboard: React.FC = () => {
             {/* Replay Timeline Slider */}
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-white/40 font-bold uppercase text-[9px]">Location History Replay</span>
+                <span className="text-[var(--color-text-light)] font-bold uppercase text-[9px]">Location History Replay</span>
                 <button
                   onClick={() => setIsReplaying(!isReplaying)}
-                  className="btn btn-ghost border border-white/10 text-[9px] px-3 py-1 rounded-lg flex items-center gap-1 font-bold"
+                  className="btn btn-ghost border border-[var(--color-border)] text-[9px] px-3 py-1 rounded-lg flex items-center gap-1 font-bold"
                 >
                   {isReplaying ? <Pause size={10} /> : <Play size={10} />}
                   <span>{isReplaying ? 'Pause Replay' : 'Play Timeline'}</span>
@@ -935,9 +935,9 @@ const CustomerDashboard: React.FC = () => {
                 max="100"
                 value={replayProgress}
                 onChange={(e) => setReplayProgress(parseInt(e.target.value))}
-                className="w-full accent-orange-500 h-1 bg-white/10 rounded-lg cursor-pointer appearance-none"
+                className="w-full accent-orange-500 h-1 bg-[var(--color-surface-2)] rounded-lg cursor-pointer appearance-none"
               />
-              <div className="flex justify-between text-[9px] text-white/40 font-semibold">
+              <div className="flex justify-between text-[9px] text-[var(--color-text-light)] font-semibold">
                 <span>0% Journey (Mombasa)</span>
                 <span>50% Mid-point (Taita Corridor)</span>
                 <span>100% Complete (Kampala)</span>
@@ -945,7 +945,7 @@ const CustomerDashboard: React.FC = () => {
             </div>
 
             {/* Countdown Widget */}
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5 grid grid-cols-4 gap-4 text-center">
+            <div className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 grid grid-cols-4 gap-4 text-center">
               {[
                 { label: 'Days', val: '01' },
                 { label: 'Hours', val: '14' },
@@ -953,8 +953,8 @@ const CustomerDashboard: React.FC = () => {
                 { label: 'Seconds', val: '59' }
               ].map((c, i) => (
                 <div key={i} className="space-y-1">
-                  <p className="text-xl font-black text-white">{c.val}</p>
-                  <p className="text-[8px] text-white/40 uppercase font-bold tracking-wider">{c.label}</p>
+                  <p className="text-xl font-black text-[var(--color-text)]">{c.val}</p>
+                  <p className="text-[8px] text-[var(--color-text-light)] uppercase font-bold tracking-wider">{c.label}</p>
                 </div>
               ))}
             </div>
@@ -965,24 +965,24 @@ const CustomerDashboard: React.FC = () => {
       {/* ─── MODAL: INVOICE BILLING & CLICKPESA CHECKOUT ─── */}
       {isInvoiceModalOpen && selectedInvoice && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsInvoiceModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
-              <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1.5">
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)] flex items-center gap-1.5">
                 <CreditCard size={14} className="text-orange-500" />
                 <span>ClickPesa Payment Gateway Checkout</span>
               </h3>
-              <p className="text-[10px] text-white/40 mt-1">Invoice Ref: {selectedInvoice.id.slice(0, 12).toUpperCase()} | Due: {selectedInvoice.dueDate}</p>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">Invoice Ref: {selectedInvoice.id.slice(0, 12).toUpperCase()} | Due: {selectedInvoice.dueDate}</p>
             </div>
 
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center text-xs">
-              <span className="text-white/60 font-bold uppercase tracking-wider text-[9px]">Corridor Billing Rate</span>
-              <span className="text-lg font-black text-white">{convertAndFormatCurrency(selectedInvoice.amount, currency)}</span>
+            <div className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 flex justify-between items-center text-xs">
+              <span className="text-[var(--color-text-muted)] font-bold uppercase tracking-wider text-[9px]">Corridor Billing Rate</span>
+              <span className="text-lg font-black text-[var(--color-text)]">{convertAndFormatCurrency(selectedInvoice.amount, currency)}</span>
             </div>
 
             {/* Payment Method Selector */}
@@ -999,7 +999,7 @@ const CustomerDashboard: React.FC = () => {
                   className={`py-2.5 rounded-xl border text-[9px] uppercase font-bold tracking-wider transition-all ${
                     paymentMethod === m.id
                       ? 'border-orange-500 text-orange-500 bg-orange-500/5'
-                      : 'border-white/10 text-white/60 hover:text-white'
+                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-orange-500 hover:bg-orange-500/5'
                   }`}
                 >
                   {m.label}
@@ -1011,7 +1011,7 @@ const CustomerDashboard: React.FC = () => {
             <form onSubmit={handlePaymentSubmit} className="space-y-4">
               {paymentMethod === 'MPESA' && (
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">ClickPesa Connected Phone (M-Pesa / Airtel)</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">ClickPesa Connected Phone (M-Pesa / Airtel)</label>
                   <input
                     type="text"
                     value={paymentForm.phoneNumber}
@@ -1020,14 +1020,14 @@ const CustomerDashboard: React.FC = () => {
                     className="input-field text-xs"
                     required
                   />
-                  <p className="text-[8px] text-white/40 mt-1">You will receive an STK pin prompt on your device immediately.</p>
+                  <p className="text-[8px] text-[var(--color-text-light)] mt-1">You will receive an STK pin prompt on your device immediately.</p>
                 </div>
               )}
 
               {paymentMethod === 'STRIPE' && (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Cardholder Card Number</label>
+                    <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Cardholder Card Number</label>
                     <input
                       type="text"
                       value={paymentForm.cardNumber}
@@ -1039,7 +1039,7 @@ const CustomerDashboard: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Expiry Date</label>
+                      <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Expiry Date</label>
                       <input
                         type="text"
                         value={paymentForm.cardExpiry}
@@ -1050,7 +1050,7 @@ const CustomerDashboard: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">CVC Code</label>
+                      <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">CVC Code</label>
                       <input
                         type="password"
                         value={paymentForm.cardCvc}
@@ -1066,12 +1066,12 @@ const CustomerDashboard: React.FC = () => {
               )}
 
               {paymentMethod === 'BANK_TRANSFER' && (
-                <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-[11px] text-white/60 space-y-2">
-                  <p className="font-bold text-white uppercase text-[8px] text-orange-500">Bank Transfer Details</p>
+                <div className="p-4 rounded-xl bg-black/30 border border-[var(--color-border)]/50 text-[11px] text-[var(--color-text-muted)] space-y-2">
+                  <p className="font-bold text-[var(--color-text)] uppercase text-[8px] text-orange-500">Bank Transfer Details</p>
                   <p>Bank: <strong>Tarxemo Standard Bank</strong></p>
                   <p>Account Number: <strong>982635-1826-19</strong></p>
                   <p>Reference: <strong>{selectedInvoice.id.slice(0, 8).toUpperCase()}</strong></p>
-                  <p className="text-[9px] text-white/30 pt-1">Confirm payment to receive automated validation within 2 hours.</p>
+                  <p className="text-[9px] text-[var(--color-text-light)] pt-1">Confirm payment to receive automated validation within 2 hours.</p>
                 </div>
               )}
 
@@ -1100,19 +1100,19 @@ const CustomerDashboard: React.FC = () => {
       {/* ─── MODAL: DRIVER & TRIP RATING FEEDBACK ─── */}
       {isRatingModalOpen && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsRatingModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
-              <h3 className="text-sm uppercase font-extrabold text-white flex items-center gap-1">
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)] flex items-center gap-1">
                 <Star size={14} className="text-orange-500 fill-orange-500" />
                 <span>Rate Cargo Delivery & Carrier Driver</span>
               </h3>
-              <p className="text-[10px] text-white/40 mt-1">Your feedback updates driver profiles and maintains high service parameters.</p>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">Your feedback updates driver profiles and maintains high service parameters.</p>
             </div>
 
             <form onSubmit={handleRatingSubmit} className="space-y-4">
@@ -1123,11 +1123,11 @@ const CustomerDashboard: React.FC = () => {
                     key={val}
                     type="button"
                     onClick={() => setRatingValue(val)}
-                    className="p-1 text-white/40 hover:scale-110 transition-all"
+                    className="p-1 text-[var(--color-text-light)] hover:scale-110 transition-all"
                   >
                     <Star
                       size={28}
-                      className={val <= ratingValue ? 'text-yellow-400 fill-yellow-400' : 'text-white/20'}
+                      className={val <= ratingValue ? 'text-yellow-400 fill-yellow-400' : 'text-[var(--color-text-light)]/30'}
                     />
                   </button>
                 ))}
@@ -1140,7 +1140,7 @@ const CustomerDashboard: React.FC = () => {
                     key={tag}
                     type="button"
                     onClick={() => setRatingComment((prev) => (prev ? prev + ', ' + tag : tag))}
-                    className="px-2.5 py-1 rounded-full border border-white/10 hover:border-orange-500/50 text-[9px] font-semibold text-white/60 hover:text-white hover:bg-orange-500/5 transition-all"
+                    className="px-2.5 py-1 rounded-full border border-[var(--color-border)] hover:border-orange-500/50 text-[9px] font-semibold text-[var(--color-text-muted)] hover:text-orange-500 hover:bg-orange-500/10 transition-all"
                   >
                     + {tag}
                   </button>
@@ -1148,7 +1148,7 @@ const CustomerDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Feedback Comments</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Feedback Comments</label>
                 <textarea
                   value={ratingComment}
                   onChange={(e) => setRatingComment(e.target.value)}

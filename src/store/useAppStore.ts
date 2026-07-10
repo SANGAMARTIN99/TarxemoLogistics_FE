@@ -14,6 +14,15 @@ export interface User {
   role: UserRole;
   tenantId?: string;
   avatar?: string;
+  phone?: string;
+  driverProfile?: {
+    id: string;
+    licenseNumber: string;
+    licenseClass: string;
+    experienceYears: number;
+    status: string;
+    rating: number;
+  };
 }
 
 interface AppState {
@@ -59,7 +68,7 @@ export const useAppStore = create<AppState>()(
       isAuthenticated: false,
       theme: 'dark',
       language: 'en',
-      currency: 'KES',
+      currency: 'TZS',
       isSidebarOpen: true,
       notifications: 0,
       tenantTheme: null,

@@ -152,6 +152,14 @@ export const GET_ME = gql`
       phone
       isActive
       createdAt
+      driverProfile {
+        id
+        licenseNumber
+        licenseClass
+        experienceYears
+        status
+        rating
+      }
     }
   }
 `;
@@ -257,3 +265,154 @@ export const GET_CUSTOMER_INVOICES = gql`
     }
   }
 `;
+
+export const GET_TENANT_DASHBOARD = gql`
+  query GetTenantDashboard {
+    trucks {
+      id
+      plateNumber
+      make
+      model
+      capacityTons
+      status
+    }
+    containers {
+      id
+      containerNumber
+      containerType
+      status
+    }
+    pricingMatrices {
+      id
+      sourceLocation
+      destinationLocation
+      containerType
+      baseRate
+      perTonRate
+      perKmRate
+    }
+  }
+`;
+
+// ─── EXTENDED CUSTOMER QUERIES ─────────────────────────────────────────────────
+
+export const GET_CUSTOMER_SHIPMENTS = gql`
+  query GetCustomerShipments($status: String, $page: Int, $pageSize: Int) {
+    customerShipments(status: $status, page: $page, pageSize: $pageSize) {
+      items {
+        id
+        trackingNumber
+        title
+        status
+        pickup
+        delivery
+        estimatedDelivery
+        actualDelivery
+        weightTons
+        containerType
+        amount
+        currency
+        createdAt
+        tenant {
+          id
+          name
+          logoUrl
+        }
+      }
+      totalCount
+      page
+      pageSize
+      hasNextPage
+    }
+  }
+`;
+
+export const GET_SHIPMENT_TRACKING = gql`
+  query GetShipmentTracking($shipmentId: ID!) {
+    shipmentTracking(shipmentId: $shipmentId) {
+      id
+      trackingNumber
+      status
+      pickup
+      delivery
+      estimatedDelivery
+      currentLat
+      currentLng
+      currentLocation
+      driver {
+        id
+        firstName
+        lastName
+        phone
+        rating
+        vehiclePlate
+      }
+      milestones {
+        id
+        location
+        lat
+        lng
+        estimatedTime
+        actualTime
+        status
+        description
+      }
+      locationLogs {
+        lat
+        lng
+        speedKph
+        timestamp
+      }
+    }
+  }
+`;
+
+export const GET_CUSTOMER_SUPPORT_TICKETS = gql`
+  query GetCustomerSupportTickets($page: Int, $pageSize: Int) {
+    supportTickets(page: $page, pageSize: $pageSize) {
+      items {
+        id
+        subject
+        description
+        status
+        priority
+        category
+        createdAt
+        updatedAt
+        responses {
+          id
+          message
+          isStaff
+          createdAt
+        }
+      }
+      totalCount
+      page
+      pageSize
+      hasNextPage
+    }
+  }
+`;
+
+export const GET_CUSTOMER_NOTIFICATIONS = gql`
+  query GetCustomerNotifications($page: Int, $pageSize: Int) {
+    notifications(page: $page, pageSize: $pageSize) {
+      items {
+        id
+        title
+        message
+        type
+        isRead
+        createdAt
+        relatedId
+        relatedType
+      }
+      totalCount
+      unreadCount
+      page
+      pageSize
+      hasNextPage
+    }
+  }
+`;
+

@@ -10,71 +10,8 @@ import { convertAndFormatCurrency } from '../../utils/currency';
 import toast from 'react-hot-toast';
 
 // ─── GraphQL Queries & Mutations ─────────────────────────────────────────────
-import { gql } from '@apollo/client';
-
-const GET_TENANT_DASHBOARD = gql`
-  query GetTenantDashboard {
-    trucks {
-      id
-      licensePlate
-      model
-      capacityTons
-      status
-    }
-    containers {
-      id
-      containerNumber
-      containerType
-      status
-    }
-    pricingMatrices {
-      id
-      containerType
-      basePrice
-      pricePerTon
-      pricePerKm
-    }
-  }
-`;
-
-const CREATE_TRUCK = gql`
-  mutation CreateTruck($input: CreateTruckInput!) {
-    createTruck(input: $input) {
-      success
-      message
-      truck {
-        id
-        licensePlate
-        model
-        capacityTons
-      }
-    }
-  }
-`;
-
-const CREATE_CONTAINER = gql`
-  mutation CreateContainer($input: CreateContainerInput!) {
-    createContainer(input: $input) {
-      success
-      message
-      container {
-        id
-        containerNumber
-        containerType
-      }
-    }
-  }
-`;
-
-const UPDATE_TENANT_THEME = gql`
-  mutation UpdateTenantTheme($input: UpdateTenantThemeInput!) {
-    updateTenantTheme(input: $input) {
-      primaryColor
-      primaryColorDark
-      borderRadius
-    }
-  }
-`;
+import { GET_TENANT_DASHBOARD } from '../../api/queries';
+import { CREATE_TRUCK, CREATE_CONTAINER, UPDATE_TENANT_THEME, UPDATE_PRICING_MATRIX } from '../../api/mutations';
 
 const TenantDashboard: React.FC = () => {
   const { currency } = useAppStore();
@@ -94,7 +31,9 @@ const TenantDashboard: React.FC = () => {
   // Add Truck Form State
   const [truckForm, setTruckForm] = useState({
     licensePlate: '',
+    make: '',
     model: '',
+    year: new Date().getFullYear().toString(),
     capacityTons: '',
   });
 
@@ -111,6 +50,8 @@ const TenantDashboard: React.FC = () => {
     basePrice: '',
     pricePerTon: '',
     pricePerKm: '',
+    sourceLocation: 'Mombasa',
+    destinationLocation: 'Kampala',
   });
 
   // White label theme state
@@ -133,13 +74,13 @@ const TenantDashboard: React.FC = () => {
   // Mutations
   const [createTruck, { loading: truckSubmitting }] = useMutation(CREATE_TRUCK, {
     onCompleted: (res) => {
-      if (res.createTruck?.success) {
-        toast.success(res.createTruck.message);
+      if (res.createTruck?.id) {
+        toast.success('Truck registered successfully!');
         setIsTruckModalOpen(false);
-        setTruckForm({ licensePlate: '', model: '', capacityTons: '' });
+        setTruckForm({ licensePlate: '', make: '', model: '', year: new Date().getFullYear().toString(), capacityTons: '' });
         refetchTenant();
       } else {
-        toast.error(res.createTruck?.message || 'Failed to register truck.');
+        toast.error('Failed to register truck.');
       }
     },
     onError: (err) => {
@@ -149,17 +90,32 @@ const TenantDashboard: React.FC = () => {
 
   const [createContainer, { loading: containerSubmitting }] = useMutation(CREATE_CONTAINER, {
     onCompleted: (res) => {
-      if (res.createContainer?.success) {
-        toast.success(res.createContainer.message);
+      if (res.createContainer?.id) {
+        toast.success('Container registered successfully!');
         setIsContainerModalOpen(false);
         setContainerForm({ containerNumber: '', containerType: '20FT', capacityTons: '' });
         refetchTenant();
       } else {
-        toast.error(res.createContainer?.message || 'Failed to register container.');
+        toast.error('Failed to register container.');
       }
     },
     onError: (err) => {
       toast.error(err.message || 'Error occurred while saving container.');
+    }
+  });
+
+  const [updatePricing] = useMutation(UPDATE_PRICING_MATRIX, {
+    onCompleted: (res) => {
+      if (res.updatePricingMatrix) {
+        toast.success('Corridor Pricing Matrix updated successfully!');
+        setIsPricingModalOpen(false);
+        refetchTenant();
+      } else {
+        toast.error('Failed to update pricing matrix.');
+      }
+    },
+    onError: (err) => {
+      toast.error(err.message || 'Failed to update pricing matrix.');
     }
   });
 
@@ -187,8 +143,19 @@ const TenantDashboard: React.FC = () => {
       errors.licensePlate = 'Invalid plate format. Alphanumeric 4-12 characters.';
     }
 
+    if (!truckForm.make.trim()) {
+      errors.make = 'Manufacturer brand/make is required.';
+    }
+
     if (!truckForm.model.trim()) {
-      errors.model = 'Manufacturer/Model is required.';
+      errors.model = 'Model name is required.';
+    }
+
+    const yearVal = parseInt(truckForm.year);
+    if (!truckForm.year) {
+      errors.year = 'Manufacture year is required.';
+    } else if (isNaN(yearVal) || yearVal < 1980 || yearVal > new Date().getFullYear() + 1) {
+      errors.year = 'Invalid manufacture year.';
     }
 
     const cap = parseFloat(truckForm.capacityTons);
@@ -212,13 +179,6 @@ const TenantDashboard: React.FC = () => {
       errors.containerNumber = 'Must match standard ISO 6346 format (e.g. MSKU1234567).';
     }
 
-    const cap = parseFloat(containerForm.capacityTons);
-    if (!containerForm.capacityTons) {
-      errors.capacityTons = 'Max weight capacity is required.';
-    } else if (isNaN(cap) || cap <= 0 || cap > 40) {
-      errors.capacityTons = 'Capacity must be between 0.1 and 40.0 Tons.';
-    }
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -230,8 +190,10 @@ const TenantDashboard: React.FC = () => {
     createTruck({
       variables: {
         input: {
-          licensePlate: truckForm.licensePlate.trim().toUpperCase(),
+          plateNumber: truckForm.licensePlate.trim().toUpperCase(),
+          make: truckForm.make.trim(),
           model: truckForm.model.trim(),
+          year: parseInt(truckForm.year),
           capacityTons: parseFloat(truckForm.capacityTons),
         }
       }
@@ -247,7 +209,6 @@ const TenantDashboard: React.FC = () => {
         input: {
           containerNumber: containerForm.containerNumber.trim().toUpperCase(),
           containerType: containerForm.containerType,
-          capacityTons: parseFloat(containerForm.capacityTons),
         }
       }
     });
@@ -255,9 +216,33 @@ const TenantDashboard: React.FC = () => {
 
   const handlePricingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success(`Corridor Pricing Matrix updated for container category: ${pricingForm.containerType}`);
-    setIsPricingModalOpen(false);
-    setPricingForm({ containerType: '20FT', basePrice: '', pricePerTon: '', pricePerKm: '' });
+    const base = parseFloat(pricingForm.basePrice);
+    const ton = parseFloat(pricingForm.pricePerTon);
+    const km = parseFloat(pricingForm.pricePerKm);
+
+    if (isNaN(base) || base < 0) {
+      toast.error('Please enter a valid base rate.');
+      return;
+    }
+    if (isNaN(ton) || ton < 0) {
+      toast.error('Please enter a valid rate per ton.');
+      return;
+    }
+    if (isNaN(km) || km < 0) {
+      toast.error('Please enter a valid rate per km.');
+      return;
+    }
+
+    updatePricing({
+      variables: {
+        containerType: pricingForm.containerType,
+        baseRate: base,
+        perTonRate: ton,
+        perKmRate: km,
+        sourceLocation: pricingForm.sourceLocation.trim(),
+        destinationLocation: pricingForm.destinationLocation.trim(),
+      }
+    });
   };
 
   const handleThemeSubmit = (e: React.FormEvent) => {
@@ -315,7 +300,7 @@ const TenantDashboard: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <RefreshCw size={24} className="text-orange-500 animate-spin" />
-        <p className="text-white/40 text-xs uppercase font-semibold tracking-wider">Syncing carrier dashboard data...</p>
+        <p className="text-[var(--color-text-light)] text-xs uppercase font-semibold tracking-wider">Syncing carrier dashboard data...</p>
       </div>
     );
   }
@@ -327,12 +312,12 @@ const TenantDashboard: React.FC = () => {
   return (
     <div ref={tenantRef} className="space-y-8 w-full">
       {/* Title greeting */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[var(--color-border)]/50 pb-6">
         <div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+          <h2 className="text-2xl font-black text-[var(--color-text)] uppercase tracking-tight flex items-center gap-2">
             Carrier <span className="text-orange-500">Fleet Operations</span>
           </h2>
-          <p className="text-white/40 text-xs mt-1">Review active trucks, container shipments, and configure white-label pricing corridors.</p>
+          <p className="text-[var(--color-text-light)] text-xs mt-1">Review active trucks, container shipments, and configure white-label pricing corridors.</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -340,7 +325,7 @@ const TenantDashboard: React.FC = () => {
               refetchTenant();
               toast.success('Carrier fleet metrics updated!');
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 hover:border-orange-500/50 text-xs font-semibold glass transition-all text-white/80 hover:text-white"
+            className="flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--color-border)] hover:border-orange-500/50 text-xs font-semibold glass transition-all text-[var(--color-text)] hover:text-[var(--color-text)]"
           >
             <RefreshCw size={12} />
             <span>Sync Assets</span>
@@ -358,24 +343,24 @@ const TenantDashboard: React.FC = () => {
         ].map((c, i) => (
           <div key={i} className={`tenant-card glass p-6 rounded-2xl border-l-4 ${c.border} border-y-0 border-r-0 shadow-lg flex items-center justify-between`}>
             <div className="space-y-1">
-              <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">{c.label}</span>
-              <p className="text-lg font-black text-white">{c.val}</p>
+              <span className="text-[10px] text-[var(--color-text-light)] uppercase font-bold tracking-wider">{c.label}</span>
+              <p className="text-lg font-black text-[var(--color-text)]">{c.val}</p>
             </div>
-            <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-              <c.icon size={16} className="text-white/60" />
+            <div className="p-3 bg-[var(--color-surface-2)]/50 rounded-xl border border-[var(--color-border)]/50">
+              <c.icon size={16} className="text-[var(--color-text-muted)]" />
             </div>
           </div>
         ))}
       </div>
 
       {/* Tab selection */}
-      <div className="flex border-b border-white/5">
+      <div className="flex border-b border-[var(--color-border)]/50">
         {(['fleet', 'pricing', 'applications', 'white-label', 'time-travel'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-6 py-3 text-xs uppercase font-extrabold tracking-wider transition-all relative ${
-              activeTab === tab ? 'text-orange-500' : 'text-white/40 hover:text-white/80'
+              activeTab === tab ? 'text-orange-500' : 'text-[var(--color-text-light)] hover:text-[var(--color-text)]'
             }`}
           >
             <span>{tab.replace('-', ' ')}</span>
@@ -391,9 +376,9 @@ const TenantDashboard: React.FC = () => {
         {activeTab === 'fleet' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Trucks Column */}
-            <div className="tenant-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1.5">
+            <div className="tenant-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+              <div className="flex justify-between items-center border-b border-[var(--color-border)]/50 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-1.5">
                   <Truck size={14} className="text-orange-500" /> Carrier Trucks
                 </h3>
                 <button
@@ -407,13 +392,13 @@ const TenantDashboard: React.FC = () => {
 
               <div className="space-y-3.5 max-h-[350px] overflow-y-auto pr-1">
                 {fleetTrucks.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-white/40">No carrier trucks registered. Add one above.</div>
+                  <div className="py-8 text-center text-xs text-[var(--color-text-light)]">No carrier trucks registered. Add one above.</div>
                 ) : (
                   fleetTrucks.map((truck: any) => (
-                    <div key={truck.id} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between">
+                    <div key={truck.id} className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 hover:border-[var(--color-border)] transition-all flex items-center justify-between">
                       <div className="space-y-1">
-                        <p className="text-xs font-bold text-white uppercase">{truck.licensePlate}</p>
-                        <p className="text-[10px] text-white/40">{truck.model} — {truck.capacityTons} Tons Capacity</p>
+                        <p className="text-xs font-bold text-[var(--color-text)] uppercase">{truck.plateNumber}</p>
+                        <p className="text-[10px] text-[var(--color-text-light)]">{truck.make} {truck.model} ({truck.year}) — {truck.capacityTons} Tons Capacity</p>
                       </div>
                       <span className={`badge ${
                         truck.status === 'AVAILABLE' ? 'badge-success' : 'badge-primary'
@@ -427,9 +412,9 @@ const TenantDashboard: React.FC = () => {
             </div>
 
             {/* Containers Column */}
-            <div className="tenant-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-              <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest flex items-center gap-1.5">
+            <div className="tenant-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+              <div className="flex justify-between items-center border-b border-[var(--color-border)]/50 pb-4">
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest flex items-center gap-1.5">
                   <Box size={14} className="text-orange-500" /> Freight Containers
                 </h3>
                 <button
@@ -443,13 +428,13 @@ const TenantDashboard: React.FC = () => {
 
               <div className="space-y-3.5 max-h-[350px] overflow-y-auto pr-1">
                 {fleetContainers.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-white/40">No containers registered. Add one above.</div>
+                  <div className="py-8 text-center text-xs text-[var(--color-text-light)]">No containers registered. Add one above.</div>
                 ) : (
                   fleetContainers.map((c: any) => (
-                    <div key={c.id} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between">
+                    <div key={c.id} className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 hover:border-[var(--color-border)] transition-all flex items-center justify-between">
                       <div className="space-y-1">
-                        <p className="text-xs font-bold text-white uppercase">{c.containerNumber}</p>
-                        <p className="text-[10px] text-white/40">Type: {c.containerType}</p>
+                        <p className="text-xs font-bold text-[var(--color-text)] uppercase">{c.containerNumber}</p>
+                        <p className="text-[10px] text-[var(--color-text-light)]">Type: {c.containerType}</p>
                       </div>
                       <span className={`badge ${
                         c.status === 'AVAILABLE' ? 'badge-success' : 'badge-primary'
@@ -465,9 +450,9 @@ const TenantDashboard: React.FC = () => {
         )}
 
         {activeTab === 'pricing' && (
-          <div className="tenant-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-            <div className="flex justify-between items-center border-b border-white/5 pb-4">
-              <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Global Freight Matrix Rules</h3>
+          <div className="tenant-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+            <div className="flex justify-between items-center border-b border-[var(--color-border)]/50 pb-4">
+              <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest">Global Freight Matrix Rules</h3>
               <button
                 onClick={() => setIsPricingModalOpen(true)}
                 className="flex items-center gap-1 btn btn-primary text-[9px] px-3 py-1.5 rounded-lg font-bold"
@@ -480,7 +465,8 @@ const TenantDashboard: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-white/10 text-white/40 uppercase font-bold text-[9px] tracking-wider">
+                  <tr className="border-b border-[var(--color-border)] text-[var(--color-text-light)] uppercase font-bold text-[9px] tracking-wider">
+                    <th className="pb-3">Transit Corridor</th>
                     <th className="pb-3">Container Type</th>
                     <th className="pb-3 text-right">Base Charge</th>
                     <th className="pb-3 text-right">Rate / Ton</th>
@@ -490,20 +476,21 @@ const TenantDashboard: React.FC = () => {
                 <tbody className="divide-y divide-white/5">
                   {matrices.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-white/40">No pricing rules defined for this carrier.</td>
+                      <td colSpan={5} className="py-8 text-center text-[var(--color-text-light)]">No pricing rules defined for this carrier.</td>
                     </tr>
                   ) : (
                     matrices.map((m: any) => (
-                      <tr key={m.id} className="text-white/80 hover:bg-white/5 transition-all">
+                      <tr key={m.id} className="text-[var(--color-text)] hover:bg-[var(--color-surface-2)]/50 transition-all">
+                        <td className="py-4 font-semibold text-[var(--color-text)]">{m.sourceLocation} to {m.destinationLocation}</td>
                         <td className="py-4 font-bold">{m.containerType}</td>
                         <td className="py-4 text-right font-semibold text-emerald-400">
-                          {convertAndFormatCurrency(m.basePrice, currency)}
+                          {convertAndFormatCurrency(m.baseRate, currency)}
                         </td>
                         <td className="py-4 text-right">
-                          {convertAndFormatCurrency(m.pricePerTon, currency)}
+                          {convertAndFormatCurrency(m.perTonRate, currency)}
                         </td>
                         <td className="py-4 text-right">
-                          {convertAndFormatCurrency(m.pricePerKm, currency)}
+                          {convertAndFormatCurrency(m.perKmRate, currency)}
                         </td>
                       </tr>
                     ))
@@ -515,9 +502,9 @@ const TenantDashboard: React.FC = () => {
         )}
 
         {activeTab === 'applications' && (
-          <div className="tenant-card glass border border-white/5 p-6 rounded-2xl space-y-6">
-            <div className="border-b border-white/5 pb-4">
-              <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Driver Applications Screening</h3>
+          <div className="tenant-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6">
+            <div className="border-b border-[var(--color-border)]/50 pb-4">
+              <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest">Driver Applications Screening</h3>
             </div>
 
             <div className="space-y-4">
@@ -525,10 +512,10 @@ const TenantDashboard: React.FC = () => {
                 { id: '1', name: 'John Doe', email: 'john.doe@gmail.com', experience: '8 Years', license: 'CLASS A', date: '2026-07-06' },
                 { id: '2', name: 'Sarah Connor', email: 'connor.s@outlook.com', experience: '5 Years', license: 'CLASS B', date: '2026-07-07' },
               ].map((app) => (
-                <div key={app.id} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div key={app.id} className="p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 hover:border-[var(--color-border)] transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div className="space-y-1">
-                    <p className="text-xs font-bold text-white">{app.name}</p>
-                    <p className="text-[10px] text-white/40">{app.email} — {app.experience} Exp ({app.license})</p>
+                    <p className="text-xs font-bold text-[var(--color-text)]">{app.name}</p>
+                    <p className="text-[10px] text-[var(--color-text-light)]">{app.email} — {app.experience} Exp ({app.license})</p>
                   </div>
 
                   <div className="flex gap-2">
@@ -553,22 +540,22 @@ const TenantDashboard: React.FC = () => {
         )}
 
         {activeTab === 'white-label' && (
-          <div className="tenant-card glass border border-white/5 p-6 rounded-2xl space-y-6 max-w-xl">
-            <div className="border-b border-white/5 pb-4">
-              <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">White-Label Branding Settings</h3>
-              <p className="text-[10px] text-white/40 mt-1">Configure your corporate design system elements for immediate white-labeling.</p>
+          <div className="tenant-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6 max-w-xl">
+            <div className="border-b border-[var(--color-border)]/50 pb-4">
+              <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest">White-Label Branding Settings</h3>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">Configure your corporate design system elements for immediate white-labeling.</p>
             </div>
 
             <form onSubmit={handleThemeSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Primary Brand Color</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Primary Brand Color</label>
                   <div className="flex gap-2">
                     <input
                       type="color"
                       value={themeForm.primaryColor}
                       onChange={(e) => setThemeForm({ ...themeForm, primaryColor: e.target.value })}
-                      className="w-8 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+                      className="w-8 h-8 rounded border border-[var(--color-border)] bg-transparent cursor-pointer"
                     />
                     <input
                       type="text"
@@ -580,13 +567,13 @@ const TenantDashboard: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Primary Color Dark</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Primary Color Dark</label>
                   <div className="flex gap-2">
                     <input
                       type="color"
                       value={themeForm.primaryColorDark}
                       onChange={(e) => setThemeForm({ ...themeForm, primaryColorDark: e.target.value })}
-                      className="w-8 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+                      className="w-8 h-8 rounded border border-[var(--color-border)] bg-transparent cursor-pointer"
                     />
                     <input
                       type="text"
@@ -601,7 +588,7 @@ const TenantDashboard: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Border Radius</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Border Radius</label>
                   <input
                     type="text"
                     value={themeForm.borderRadius}
@@ -612,11 +599,11 @@ const TenantDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Font Family</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Font Family</label>
                   <select
                     value={themeForm.fontFamily}
                     onChange={(e) => setThemeForm({ ...themeForm, fontFamily: e.target.value })}
-                    className="input-field text-xs bg-white/5 border-white/10 text-white"
+                    className="input-field text-xs bg-[var(--color-surface-2)]/50 border-[var(--color-border)] text-[var(--color-text)]"
                   >
                     <option value="Inter" className="bg-black">Inter (Sleek sans-serif)</option>
                     <option value="Outfit" className="bg-black">Outfit (Modern bold)</option>
@@ -647,12 +634,12 @@ const TenantDashboard: React.FC = () => {
         )}
 
         {activeTab === 'time-travel' && (
-          <div className="tenant-card glass border border-white/5 p-6 rounded-2xl space-y-6 max-w-xl">
-            <div className="border-b border-white/5 pb-4 flex items-center gap-2">
+          <div className="tenant-card glass border border-[var(--color-border)]/50 p-6 rounded-2xl space-y-6 max-w-xl">
+            <div className="border-b border-[var(--color-border)]/50 pb-4 flex items-center gap-2">
               <Clock size={16} className="text-orange-500" />
               <div>
-                <h3 className="text-xs uppercase font-extrabold text-white tracking-widest">Time-Travel State Simulation</h3>
-                <p className="text-[10px] text-white/40 mt-1">Shift historical states forward to test billing cycles, due invoices, and routing forecasts.</p>
+                <h3 className="text-xs uppercase font-extrabold text-[var(--color-text)] tracking-widest">Time-Travel State Simulation</h3>
+                <p className="text-[10px] text-[var(--color-text-light)] mt-1">Shift historical states forward to test billing cycles, due invoices, and routing forecasts.</p>
               </div>
             </div>
 
@@ -664,7 +651,7 @@ const TenantDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-between items-center p-4 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex justify-between items-center p-4 rounded-xl bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50">
               <span className="text-xs font-semibold">Active Simulation Offset:</span>
               <span className="badge badge-primary text-[10px] font-black uppercase font-mono">{timeShiftDays} Days Offset</span>
             </div>
@@ -673,7 +660,7 @@ const TenantDashboard: React.FC = () => {
               <button
                 onClick={() => handleTimeShift(7)}
                 disabled={timeShiftLoading}
-                className="btn btn-ghost border border-white/10 hover:border-orange-500/50 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                className="btn btn-ghost border border-[var(--color-border)] hover:border-orange-500/50 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
               >
                 <Calendar size={12} />
                 <span>+7 Days Forward</span>
@@ -681,7 +668,7 @@ const TenantDashboard: React.FC = () => {
               <button
                 onClick={() => handleTimeShift(30)}
                 disabled={timeShiftLoading}
-                className="btn btn-ghost border border-white/10 hover:border-orange-500/50 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                className="btn btn-ghost border border-[var(--color-border)] hover:border-orange-500/50 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
               >
                 <Clock size={12} />
                 <span>+30 Days (Full Cycle)</span>
@@ -693,7 +680,7 @@ const TenantDashboard: React.FC = () => {
                   setTimeShiftDays(0);
                   toast.success('Simulation timeline reset to current epoch.');
                 }}
-                className="w-full text-center text-[10px] text-white/40 hover:text-white uppercase font-bold tracking-wider"
+                className="w-full text-center text-[10px] text-[var(--color-text-light)] hover:text-[var(--color-text)] uppercase font-bold tracking-wider"
               >
                 Reset simulation offset to current date
               </button>
@@ -705,21 +692,21 @@ const TenantDashboard: React.FC = () => {
       {/* Add Truck Modal */}
       {isTruckModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsTruckModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
-              <h3 className="text-sm uppercase font-extrabold text-white">Register Carrier Truck</h3>
-              <p className="text-[10px] text-white/40 mt-1">Submit license plate credentials for carrier vehicle audit.</p>
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)]">Register Carrier Truck</h3>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">Submit license plate credentials for carrier vehicle audit.</p>
             </div>
 
             <form onSubmit={handleTruckSubmit} className="space-y-4">
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">License Plate</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">License Plate</label>
                 <input
                   type="text"
                   value={truckForm.licensePlate}
@@ -733,35 +720,67 @@ const TenantDashboard: React.FC = () => {
                 )}
               </div>
 
-              <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Manufacturer / Model</label>
-                <input
-                  type="text"
-                  value={truckForm.model}
-                  onChange={(e) => setTruckForm({ ...truckForm, model: e.target.value })}
-                  placeholder="e.g. Mercedes Actros 2545"
-                  className="input-field text-xs"
-                  required
-                />
-                {formErrors.model && (
-                  <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.model}</span>
-                )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Manufacturer Brand / Make</label>
+                  <input
+                    type="text"
+                    value={truckForm.make}
+                    onChange={(e) => setTruckForm({ ...truckForm, make: e.target.value })}
+                    placeholder="e.g. Mercedes-Benz"
+                    className="input-field text-xs"
+                    required
+                  />
+                  {formErrors.make && (
+                    <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.make}</span>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Model Name</label>
+                  <input
+                    type="text"
+                    value={truckForm.model}
+                    onChange={(e) => setTruckForm({ ...truckForm, model: e.target.value })}
+                    placeholder="e.g. Actros 2545"
+                    className="input-field text-xs"
+                    required
+                  />
+                  {formErrors.model && (
+                    <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.model}</span>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Tonnage Capacity (Tons)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={truckForm.capacityTons}
-                  onChange={(e) => setTruckForm({ ...truckForm, capacityTons: e.target.value })}
-                  placeholder="e.g. 28.5"
-                  className="input-field text-xs"
-                  required
-                />
-                {formErrors.capacityTons && (
-                  <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.capacityTons}</span>
-                )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Manufacture Year</label>
+                  <input
+                    type="number"
+                    value={truckForm.year}
+                    onChange={(e) => setTruckForm({ ...truckForm, year: e.target.value })}
+                    placeholder="e.g. 2022"
+                    className="input-field text-xs"
+                    required
+                  />
+                  {formErrors.year && (
+                    <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.year}</span>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Tonnage Capacity (Tons)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={truckForm.capacityTons}
+                    onChange={(e) => setTruckForm({ ...truckForm, capacityTons: e.target.value })}
+                    placeholder="e.g. 28.5"
+                    className="input-field text-xs"
+                    required
+                  />
+                  {formErrors.capacityTons && (
+                    <span className="text-[9px] text-red-400 mt-1 block font-semibold">{formErrors.capacityTons}</span>
+                  )}
+                </div>
               </div>
 
               <button
@@ -789,21 +808,21 @@ const TenantDashboard: React.FC = () => {
       {/* Add Container Modal */}
       {isContainerModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsContainerModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
-              <h3 className="text-sm uppercase font-extrabold text-white">Register Freight Container</h3>
-              <p className="text-[10px] text-white/40 mt-1">Submit global cargo container specifications.</p>
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)]">Register Freight Container</h3>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">Submit global cargo container specifications.</p>
             </div>
 
             <form onSubmit={handleContainerSubmit} className="space-y-4">
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Container ISO Code Number</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Container ISO Code Number</label>
                 <input
                   type="text"
                   value={containerForm.containerNumber}
@@ -819,11 +838,11 @@ const TenantDashboard: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Container Type</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Container Type</label>
                   <select
                     value={containerForm.containerType}
                     onChange={(e) => setContainerForm({ ...containerForm, containerType: e.target.value })}
-                    className="input-field text-xs bg-white/5 border-white/10 text-white"
+                    className="input-field text-xs bg-[var(--color-surface-2)]/50 border-[var(--color-border)] text-[var(--color-text)]"
                   >
                     <option value="20FT" className="bg-black">20FT Dry Van</option>
                     <option value="40FT" className="bg-black">40FT Dry Van</option>
@@ -833,7 +852,7 @@ const TenantDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Max Weight Capacity</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Max Weight Capacity</label>
                   <input
                     type="number"
                     step="0.1"
@@ -874,25 +893,50 @@ const TenantDashboard: React.FC = () => {
       {/* Define Pricing Rule Modal */}
       {isPricingModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass border border-white/15 p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="glass border border-[var(--color-border)] p-6 rounded-2xl w-full max-w-md space-y-6 relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setIsPricingModalOpen(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white"
+              className="absolute top-4 right-4 text-[var(--color-text-light)] hover:text-[var(--color-text)]"
             >
               <X size={14} />
             </button>
             <div>
-              <h3 className="text-sm uppercase font-extrabold text-white">Define Corridor Pricing Rule</h3>
-              <p className="text-[10px] text-white/40 mt-1">Specify new rate parameters for freight calculation.</p>
+              <h3 className="text-sm uppercase font-extrabold text-[var(--color-text)]">Define Corridor Pricing Rule</h3>
+              <p className="text-[10px] text-[var(--color-text-light)] mt-1">Specify new rate parameters for freight calculation.</p>
             </div>
 
             <form onSubmit={handlePricingSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Source Location</label>
+                  <input
+                    type="text"
+                    value={pricingForm.sourceLocation}
+                    onChange={(e) => setPricingForm({ ...pricingForm, sourceLocation: e.target.value })}
+                    placeholder="e.g. Mombasa"
+                    className="input-field text-xs"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Destination Location</label>
+                  <input
+                    type="text"
+                    value={pricingForm.destinationLocation}
+                    onChange={(e) => setPricingForm({ ...pricingForm, destinationLocation: e.target.value })}
+                    placeholder="e.g. Kampala"
+                    className="input-field text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Container size category</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Container size category</label>
                 <select
                   value={pricingForm.containerType}
                   onChange={(e) => setPricingForm({ ...pricingForm, containerType: e.target.value })}
-                  className="input-field text-xs bg-white/5 border-white/10 text-white"
+                  className="input-field text-xs bg-[var(--color-surface-2)]/50 border-[var(--color-border)] text-[var(--color-text)]"
                 >
                   <option value="20FT" className="bg-black">20FT Container</option>
                   <option value="40FT" className="bg-black">40FT Container</option>
@@ -902,7 +946,7 @@ const TenantDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Base Charge (KES)</label>
+                <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Base Charge (KES)</label>
                 <input
                   type="number"
                   value={pricingForm.basePrice}
@@ -915,7 +959,7 @@ const TenantDashboard: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Rate / Ton (KES)</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Rate / Ton (KES)</label>
                   <input
                     type="number"
                     value={pricingForm.pricePerTon}
@@ -926,7 +970,7 @@ const TenantDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] text-white/40 uppercase font-bold mb-1">Rate / Km (KES)</label>
+                  <label className="block text-[9px] text-[var(--color-text-light)] uppercase font-bold mb-1">Rate / Km (KES)</label>
                   <input
                     type="number"
                     value={pricingForm.pricePerKm}
@@ -951,31 +995,31 @@ const TenantDashboard: React.FC = () => {
 
       {/* Credentials generated overlay */}
       {onboardingCreds && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-[var(--color-surface)] backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass border border-emerald-500/20 p-6 rounded-2xl w-full max-w-md space-y-6 text-left relative animate-in zoom-in-95 duration-200">
             <div className="flex gap-2 items-center text-emerald-400">
               <Shield size={16} />
               <h3 className="text-xs uppercase font-extrabold tracking-widest font-mono">Driver Credentials Onboarded</h3>
             </div>
-            <div className="space-y-3.5 border-y border-white/5 py-4 text-xs">
+            <div className="space-y-3.5 border-y border-[var(--color-border)]/50 py-4 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-white/40">Driver Name:</span>
-                <span className="font-bold text-white">{onboardingCreds.name}</span>
+                <span className="text-[var(--color-text-light)]">Driver Name:</span>
+                <span className="font-bold text-[var(--color-text)]">{onboardingCreds.name}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white/40">Portal Username:</span>
-                <span className="font-bold text-white font-mono">{onboardingCreds.email}</span>
+                <span className="text-[var(--color-text-light)]">Portal Username:</span>
+                <span className="font-bold text-[var(--color-text)] font-mono">{onboardingCreds.email}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white/40">Temporary Password:</span>
+                <span className="text-[var(--color-text-light)]">Temporary Password:</span>
                 <span className="font-bold text-emerald-400 font-mono tracking-wider">{onboardingCreds.temporaryPassword}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white/40">Assigned Role:</span>
-                <span className="font-bold text-white uppercase">{onboardingCreds.role}</span>
+                <span className="text-[var(--color-text-light)]">Assigned Role:</span>
+                <span className="font-bold text-[var(--color-text)] uppercase">{onboardingCreds.role}</span>
               </div>
             </div>
-            <p className="text-[10px] text-white/40 leading-relaxed">
+            <p className="text-[10px] text-[var(--color-text-light)] leading-relaxed">
               These credentials have been automatically dispatched via SMS/Email notifications to the driver's device. Secure cryptographic logs are stored.
             </p>
             <button

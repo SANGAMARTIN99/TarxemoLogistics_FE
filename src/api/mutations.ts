@@ -150,3 +150,83 @@ export const PROCESS_PAYMENT = gql`
     }
   }
 `;
+
+export const UPDATE_DRIVER_PROFILE = gql`
+  mutation UpdateDriverProfile($input: UpdateDriverProfileInput!) {
+    updateDriverProfile(input: $input) {
+      id
+      licenseNumber
+      licenseClass
+      experienceYears
+      status
+      rating
+    }
+  }
+`;
+
+export const LOG_LOCATION = gql`
+  mutation LogLocation($input: LocationLogInput!) {
+    logLocation(input: $input) {
+      id
+      latitude
+      longitude
+      speedKph
+      heading
+      timestamp
+    }
+  }
+`;
+
+export const CREATE_TRUCK = gql`
+  mutation CreateTruck($input: CreateTruckInput!) {
+    createTruck(input: $input) {
+      id
+      plateNumber
+      make
+      model
+      capacityTons
+      status
+    }
+  }
+`;
+
+export const CREATE_CONTAINER = gql`
+  mutation CreateContainer($input: CreateContainerInput!) {
+    createContainer(input: $input) {
+      id
+      containerNumber
+      containerType
+      status
+    }
+  }
+`;
+
+export const UPDATE_TENANT_THEME = gql`
+  mutation UpdateTenantTheme($input: UpdateTenantThemeInput!) {
+    updateTenantTheme(input: $input) {
+      primaryColor
+      primaryColorDark
+      borderRadius
+    }
+  }
+`;
+
+export const UPDATE_PRICING_MATRIX = gql`
+  mutation UpdatePricingMatrix(
+    $containerType: String!
+    $baseRate: Float!
+    $perTonRate: Float!
+    $perKmRate: Float!
+    $sourceLocation: String
+    $destinationLocation: String
+  ) {
+    updatePricingMatrix(
+      containerType: $containerType
+      baseRate: $baseRate
+      perTonRate: $perTonRate
+      perKmRate: $perKmRate
+      sourceLocation: $sourceLocation
+      destinationLocation: $destinationLocation
+    )
+  }
+`;
