@@ -1,4 +1,5 @@
 import strawberry
+from typing import Optional
 from decimal import Decimal
 from strawberry.types import Info
 from .models import Quote, PricingMatrix, QuoteStatus
@@ -114,3 +115,36 @@ class PricingMutation:
             message="Quote accepted and corridor trip booked successfully! Invoice generated.",
             quote=quote
         )
+
+    @strawberry.mutation
+    def update_pricing_matrix(
+        self,
+        info: Info,
+        container_type: str,
+        base_rate: float,
+        per_ton_rate: float,
+        per_km_rate: float,
+        source_location: Optional[str] = "Mombasa",
+        destination_location: Optional[str] = "Kampala"
+    ) -> bool:
+        user = info.context.request.user
+        if not user.is_authenticated or user.role not in ("TENANT_ADMIN", "SUPER_ADMIN", "OPERATIONS_MANAGER"):
+            raise Exception("Permission denied. Operations Manager or Tenant Admin access required.")
+
+        tenant = info.context.request.tenant or user.tenant
+        if not tenant:
+            raise Exception("No active carrier company context resolved.")
+
+        # Update or create pricing matrix
+        PricingMatrix.objects.update_or_create(
+            tenant=tenant,
+            source_location=source_location or "Mombasa",
+            destination_location=destination_location or "Kampala",
+            container_type=container_type,
+            defaults={
+                "base_rate": Decimal(str(base_rate)),
+                "per_km_rate": Decimal(str(per_km_rate)),
+                "per_ton_rate": Decimal(str(per_ton_rate)),
+            }
+        )
+        return True

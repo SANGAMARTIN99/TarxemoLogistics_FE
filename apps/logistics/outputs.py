@@ -97,3 +97,25 @@ class CustomerDashboardType:
     total_shipments: int
     pending_quotes: int
     recent_shipments: List[CustomerDashboardShipmentType]
+
+@strawberry.type
+class LogisticsManagerLogType:
+    checkpoint: str
+    time: str
+    operator: str
+    code: str
+    status: str
+
+@strawberry.type
+class LogisticsManagerPricingType:
+    base_rate_km: float
+    currency: str
+    corridor_name: str
+
+@strawberry.type
+class LogisticsManagerDashboardType:
+    corridor_utility: str
+    active_drivers_count: int
+    active_tenants_count: int
+    active_logs: List[LogisticsManagerLogType]
+    pricing: LogisticsManagerPricingType

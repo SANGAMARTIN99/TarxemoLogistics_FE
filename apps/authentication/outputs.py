@@ -6,6 +6,7 @@ import strawberry_django
 from strawberry import auto
 from typing import Optional
 from .models import User
+from apps.drivers.outputs import DriverProfileType
 
 
 @strawberry_django.type(User)
@@ -23,6 +24,12 @@ class UserType:
     timezone: auto
     date_joined: auto
     updated_at: auto
+
+    @strawberry_django.field
+    def driver_profile(self) -> Optional["DriverProfileType"]:
+        if hasattr(self, "driver_profile"):
+            return self.driver_profile
+        return None
 
     @strawberry_django.field
     def full_name(self) -> str:

@@ -31,38 +31,23 @@ class DriversQuery:
                 )
             )
 
-        # Fallback upcoming trip if list is empty, just for demo / frontend display consistency
-        if not upcoming_trips:
-            upcoming_trips.append(
-                DriverTripType(
-                    id="1",
-                    title="Container Freight dispatch",
-                    pickup="Mombasa Port",
-                    delivery="Kampala Central Depot",
-                    date="2026-08-12",
-                    status="CONFIRMED"
-                )
-            )
-
         # Get driver rating
         rating = 5.0
         if hasattr(user, "driver_profile"):
             rating = float(user.driver_profile.rating)
 
         # Compute monthly earnings
-        this_month_earnings = sum([float(job.salary_min or 0) for job in assigned_jobs])
-        if this_month_earnings == 0:
-            this_month_earnings = 125000.0 # Default mock for nice display
+        this_month_earnings = sum([float(job.salary_min or 0) for job in assigned_jobs.filter(status="DELIVERED")])
 
         earnings = DriverEarningsType(
             this_month=this_month_earnings,
-            last_month=this_month_earnings * 0.9,
+            last_month=0.0,
             currency="KES"
         )
 
         return DriverDashboardType(
             available_jobs=available_jobs_count,
-            completed_trips=completed_trips_count or 48, # default mock if none
+            completed_trips=completed_trips_count,
             rating=rating,
             earnings=earnings,
             upcoming_trips=upcoming_trips
