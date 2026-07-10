@@ -110,8 +110,8 @@ const CustomerDashboard: React.FC = () => {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query + ' East Africa'
-        )}&addressdetails=1&limit=5`,
+          query
+        )}&countrycodes=tz,ke,ug,rw,bi&addressdetails=1&limit=5`,
         {
           headers: {
             'Accept-Language': 'en',
