@@ -54,3 +54,4 @@ class ShipmentTrackingType:
     driver: Optional[ShipmentTrackingDriverType]
     milestones: List[ShipmentTrackingMilestoneType]
     location_logs: List[ShipmentTrackingLocationLogType]
+    route_coordinates: List[ShipmentTrackingLocationLogType]

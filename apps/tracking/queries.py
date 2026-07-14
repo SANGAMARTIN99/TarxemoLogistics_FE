@@ -1,12 +1,42 @@
 import strawberry
+import urllib.request
+import json
 from typing import List, Optional
 from strawberry.types import Info
+from django.conf import settings
 from apps.logistics.models import Job
 from .models import LocationLog
 from .outputs import (
     LocationLogType, ShipmentTrackingType, ShipmentTrackingDriverType,
     ShipmentTrackingMilestoneType, ShipmentTrackingLocationLogType
 )
+
+def _fetch_osrm_route(p_lat: float, p_lng: float, d_lat: float, d_lng: float) -> List[dict]:
+    url = f"{settings.OSRM_BASE_URL}/route/v1/driving/{p_lng},{p_lat};{d_lng},{d_lat}?overview=full&geometries=geojson"
+    try:
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Tarxemo Logistics Platform'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            if data.get("code") == "Ok" and data.get("routes"):
+                coords = data["routes"][0]["geometry"]["coordinates"]
+                return [{"lat": float(c[1]), "lng": float(c[0])} for c in coords]
+    except Exception as e:
+        import logging
+        logging.getLogger("tracking").error(f"OSRM Route API request failed: {e}")
+    
+    # Fallback to straight line (15 interpolation steps)
+    coords = []
+    steps = 15
+    for i in range(steps + 1):
+        t = i / steps
+        lat = p_lat + (d_lat - p_lat) * t
+        lng = p_lng + (d_lng - p_lng) * t
+        coords.append({"lat": lat, "lng": lng})
+    return coords
+
 
 @strawberry.type
 class TrackingQuery:
@@ -136,6 +166,17 @@ class TrackingQuery:
                 ShipmentTrackingLocationLogType(lat=c_lat, lng=c_lng, speed_kph=65.0, timestamp="2026-07-10T12:00:00Z")
             ]
 
+        # Fetch real road route using OSRM
+        route_coords = _fetch_osrm_route(p_lat, p_lng, d_lat, d_lng)
+        route_logs = [
+            ShipmentTrackingLocationLogType(
+                lat=c["lat"],
+                lng=c["lng"],
+                speed_kph=60.0,
+                timestamp=""
+            ) for c in route_coords
+        ]
+
         return ShipmentTrackingType(
             id=str(job.id),
             tracking_number=f"TRX-{str(job.id)[:8].upper()}",
@@ -148,5 +189,28 @@ class TrackingQuery:
             current_location=c_loc,
             driver=driver_data,
             milestones=milestones,
-            location_logs=logs
+            location_logs=logs,
+            route_coordinates=route_logs
         )
+
+    @strawberry.field
+    def get_route_coordinates(
+        self, 
+        info: Info, 
+        pickup_lat: float, 
+        pickup_lng: float, 
+        delivery_lat: float, 
+        delivery_lng: float
+    ) -> List[ShipmentTrackingLocationLogType]:
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        route_coords = _fetch_osrm_route(pickup_lat, pickup_lng, delivery_lat, delivery_lng)
+        return [
+            ShipmentTrackingLocationLogType(
+                lat=c["lat"],
+                lng=c["lng"],
+                speed_kph=0.0,
+                timestamp=""
+            ) for c in route_coords
+        ]

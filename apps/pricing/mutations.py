@@ -17,7 +17,11 @@ class PricingMutation:
                 message="Please login or register to request shipping quotes."
             )
 
-        tenant = info.context.request.tenant
+        tenant = info.context.request.tenant or (user.tenant if hasattr(user, 'tenant') else None)
+        if not tenant:
+            from apps.tenants.models import Tenant
+            tenant = Tenant.objects.filter(status="ACTIVE").first()
+            
         if not tenant:
             return RequestQuoteResponse(
                 success=False,

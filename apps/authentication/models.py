@@ -57,7 +57,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     # ─── Role (server-assigned, never user-chosen) ────────────────────────────
     role = models.CharField(
         max_length=30,
-        choices=UserRole.choices,
         default=UserRole.CUSTOMER,
         db_index=True,
     )

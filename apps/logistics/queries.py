@@ -1,13 +1,14 @@
 import strawberry
 from typing import Optional, List
 from strawberry.types import Info
-from django.db.models import Q
-from .models import Job, Truck, Container, SupportTicket
+from django.db.models import Q, Count
+from .models import Job, Truck, Container, SupportTicket, JobApplication
 from .outputs import (
-    JobType, JobPaginatedResponse, TruckType, ContainerType, 
+    JobType, JobPaginatedResponse, TruckType, ContainerType,
     CustomerDashboardType, CustomerDashboardShipmentType,
     LogisticsManagerDashboardType, LogisticsManagerLogType, LogisticsManagerPricingType,
-    SupportTicketType
+    SupportTicketType, JobApplicationType, OperationsFleetStatsType,
+    OperationsDriverStatusType, OperationsDriverStatusPaginatedType
 )
 from apps.pricing.models import Quote, PricingMatrix
 from apps.tracking.models import LocationLog
@@ -26,11 +27,11 @@ class LogisticsQuery:
         company_id: Optional[str] = None,
         page: Optional[int] = 1,
         page_size: Optional[int] = 10,
-        status: Optional[str] = "OPEN"
+        status: Optional[str] = None
     ) -> JobPaginatedResponse:
         queryset = Job.objects.all().order_by("-posted_at")
 
-        if status:
+        if status and status != "ALL":
             queryset = queryset.filter(status=status)
 
         if company_id:
@@ -263,3 +264,116 @@ class LogisticsQuery:
             page_size=page_size,
             has_next_page=has_next_page
         )
+
+    # ─── OPERATIONS MANAGER QUERIES ───────────────────────────────────────────
+
+    @strawberry.field
+    def operations_fleet_stats(self, info: Info) -> "OperationsFleetStatsType":
+        """Operations Manager: Fleet utilization summary."""
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        if user.role not in ("OPERATIONS_MANAGER", "TENANT_ADMIN", "SUPER_ADMIN"):
+            raise Exception("Permission denied.")
+
+        tenant = getattr(info.context.request, "tenant", None) or getattr(user, "tenant", None)
+
+        trucks_qs = Truck.objects.filter(tenant=tenant) if tenant else Truck.objects.all()
+        total_trucks = trucks_qs.count()
+        active_trucks = trucks_qs.filter(status="ACTIVE").count()
+        maintenance_trucks = trucks_qs.filter(status="MAINTENANCE").count()
+        oos_trucks = trucks_qs.filter(status="OUT_OF_SERVICE").count()
+
+        containers_qs = Container.objects.filter(tenant=tenant) if tenant else Container.objects.all()
+        total_containers = containers_qs.count()
+        assigned_containers = containers_qs.filter(status="ASSIGNED").count()
+
+        jobs_qs = Job.objects.filter(tenant=tenant) if tenant else Job.objects.all()
+        active_dispatches = jobs_qs.filter(status__in=["CONFIRMED", "IN_TRANSIT"]).count()
+        pending_jobs = jobs_qs.filter(status="OPEN").count()
+        delivered_today = jobs_qs.filter(status="DELIVERED").count()
+
+        return OperationsFleetStatsType(
+            total_trucks=total_trucks,
+            active_trucks=active_trucks,
+            maintenance_trucks=maintenance_trucks,
+            oos_trucks=oos_trucks,
+            total_containers=total_containers,
+            assigned_containers=assigned_containers,
+            active_dispatches=active_dispatches,
+            pending_jobs=pending_jobs,
+            delivered_today=delivered_today,
+            fleet_utilization=int((active_trucks / total_trucks * 100) if total_trucks > 0 else 0),
+        )
+
+    @strawberry.field
+    def operations_drivers(
+        self,
+        info: Info,
+        search: Optional[str] = None,
+        status: Optional[str] = None,
+        page: Optional[int] = 1,
+        page_size: Optional[int] = 15,
+    ) -> "OperationsDriverStatusPaginatedType":
+        """Operations Manager: Driver status board."""
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        if user.role not in ("OPERATIONS_MANAGER", "TENANT_ADMIN", "SUPER_ADMIN"):
+            raise Exception("Permission denied.")
+
+        qs = User.objects.filter(role="DRIVER", is_active=True)
+        if search:
+            qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+
+        total_count = qs.count()
+        offset = (page - 1) * page_size
+        drivers = list(qs[offset:offset + page_size])
+
+        items = []
+        for d in drivers:
+            active_job = Job.objects.filter(assigned_driver=d, status__in=["CONFIRMED", "IN_TRANSIT"]).first()
+            completed = Job.objects.filter(assigned_driver=d, status="DELIVERED").count()
+            rating = float(d.driver_profile.rating) if hasattr(d, "driver_profile") else 5.0
+            items.append(OperationsDriverStatusType(
+                id=str(d.id),
+                first_name=d.first_name,
+                last_name=d.last_name,
+                email=d.email,
+                phone=d.phone or "",
+                status="ON_DUTY" if active_job else "AVAILABLE",
+                active_job_id=str(active_job.id) if active_job else None,
+                active_job_title=active_job.title if active_job else None,
+                completed_trips=completed,
+                rating=rating,
+            ))
+
+        return OperationsDriverStatusPaginatedType(
+            items=items,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            has_next_page=offset + page_size < total_count,
+        )
+
+    @strawberry.field
+    def pending_applications(
+        self,
+        info: Info,
+        job_id: Optional[str] = None,
+        page: Optional[int] = 1,
+        page_size: Optional[int] = 10,
+    ) -> List[JobApplicationType]:
+        """Operations Manager: List driver job applications for review."""
+        user = info.context.request.user
+        if not user.is_authenticated:
+            raise Exception("Authentication required.")
+        if user.role not in ("OPERATIONS_MANAGER", "TENANT_ADMIN", "SUPER_ADMIN"):
+            raise Exception("Permission denied.")
+
+        qs = JobApplication.objects.select_related("job", "driver").order_by("-applied_at")
+        if job_id:
+            qs = qs.filter(job_id=job_id)
+        offset = (page - 1) * page_size
+        return list(qs[offset:offset + page_size])
+

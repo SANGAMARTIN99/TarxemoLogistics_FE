@@ -24,6 +24,7 @@ class RegisterUserInput:
     confirm_password: str
     phone_number: Optional[str] = None
     preferred_language: Optional[str] = "en"
+    account_type: Optional[str] = None
 
 
 @strawberry.input

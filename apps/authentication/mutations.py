@@ -129,17 +129,40 @@ class AuthMutation:
         if User.objects.filter(email=email).exists():
             raise Exception("An account with this email already exists.")
 
-        # Create user with CUSTOMER role (server-assigned)
+        # Role assignment based on account_type
+        assigned_role = UserRole.TENANT_ADMIN if input.account_type == "TENANT_ADMIN" else UserRole.CUSTOMER
+
+        # Create user with assigned role
         user = User.objects.create_user(
             email=email,
             password=input.password,
             first_name=first_name,
             last_name=last_name,
             phone_number=input.phone_number or "",
-            role=UserRole.CUSTOMER,   # ← Always CUSTOMER for self-registration
+            role=assigned_role,
             preferred_language=input.preferred_language or "en",
             is_verified=True,
         )
+
+        # If user registered as TENANT_ADMIN, create a pending tenant and membership
+        if assigned_role == UserRole.TENANT_ADMIN:
+            from apps.tenants.models import Tenant, TenantMembership, TenantStatus
+            # Create a placeholder tenant that needs to be filled in later
+            tenant = Tenant.objects.create(
+                name=f"{first_name}'s Company",
+                slug=f"{first_name.lower()}-{last_name.lower()}-company",
+                email=email,
+                phone=input.phone_number or "",
+                status=TenantStatus.PENDING
+            )
+            TenantMembership.objects.create(
+                user=user,
+                tenant=tenant,
+                role="TENANT_ADMIN"
+            )
+            # Also set the user's tenant directly
+            user.tenant = tenant
+            user.save(update_fields=["tenant"])
 
         # Skip verification email for now
         # _send_verification_email(user)
@@ -159,10 +182,9 @@ class AuthMutation:
         if not current_user.is_authenticated:
             raise Exception("Authentication required.")
 
-        # Validate role
-        valid_roles = [r.value for r in UserRole]
-        if input.role not in valid_roles:
-            raise Exception(f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+        # Validate role (Allow custom roles)
+        if not input.role:
+            raise Exception("Role cannot be empty.")
 
         # RBAC: TENANT_ADMIN cannot create SUPER_ADMIN
         if current_user.role == "TENANT_ADMIN":

@@ -183,3 +183,43 @@ class SupportTicketType:
     @strawberry.field
     def responses(self) -> List[SupportTicketResponseType]:
         return list(self.responses.all())
+
+
+# ─── OPERATIONS MANAGER TYPES ─────────────────────────────────────────────────
+
+@strawberry.type
+class OperationsFleetStatsType:
+    total_trucks: int
+    active_trucks: int
+    maintenance_trucks: int
+    oos_trucks: int
+    total_containers: int
+    assigned_containers: int
+    active_dispatches: int
+    pending_jobs: int
+    delivered_today: int
+    fleet_utilization: int
+
+
+@strawberry.type
+class OperationsDriverStatusType:
+    id: str
+    first_name: str
+    last_name: str
+    email: str
+    phone: str
+    status: str  # ON_DUTY | AVAILABLE
+    active_job_id: Optional[str]
+    active_job_title: Optional[str]
+    completed_trips: int
+    rating: float
+
+
+@strawberry.type
+class OperationsDriverStatusPaginatedType:
+    items: List[OperationsDriverStatusType]
+    total_count: int
+    page: int
+    page_size: int
+    has_next_page: bool
+
